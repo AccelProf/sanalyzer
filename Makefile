@@ -40,10 +40,10 @@ $(LIB): $(OBJS)
 	$(CXX) $(LDFLAGS) -fPIC -shared -o $@ $^ $(LDFLAGS)
 
 $(OBJ_DIR)%.o: $(SRC_DIR)%.cpp
-	$(CXX) -I$(INC_DIR) $(CFLAGS) -fPIC -c $< -o $@
+	$(CXX) -I$(INC_DIR) -I$(GPU_PATCH_HEADER_DIR) $(CFLAGS) -fPIC -c $< -o $@
 
 $(OBJ_DIR)%.o: $(SRC_DIR)/*/%.cpp
-	$(CXX) -I$(INC_DIR) $(CFLAGS) -fPIC -c $< -o $@
+	$(CXX) -I$(INC_DIR) -I$(GPU_PATCH_HEADER_DIR) $(CFLAGS) -fPIC -c $< -o $@
 
 .PHONY: clean
 clean:
