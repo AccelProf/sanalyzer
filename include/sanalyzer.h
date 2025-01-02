@@ -15,6 +15,7 @@ typedef enum {
 
 typedef struct SanitizerOptions {
     bool enable_access_tracking;
+    bool enable_touch_tracking;
 
     SanitizerOptions() = default;
     ~SanitizerOptions() = default;

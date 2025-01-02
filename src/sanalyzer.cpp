@@ -1,5 +1,6 @@
 #include "sanalyzer.h"
 #include "tools/app_metric.h"
+#include "tools/mem_trace.h"
 #include "tools/tool.h"
 #include "utils/event.h"
 
@@ -27,14 +28,12 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
         fprintf(stdout, "Enabling app_metric tool.\n");
         tool = APP_METRICE;
         _tools.emplace(APP_METRICE, std::make_shared<AppMetrics>());
-    }
-    // else if (std::string(tool_name) == "mem_trace")
-    // {
-    //     fprintf(stdout, "Enabling mem_trace tool.\n");
-    //     tool = YOSEMITE_MEM_TRACE;
-    //     _tools.emplace(YOSEMITE_MEM_TRACE, std::make_shared<MemTrace>());
-    // }
-    else
+    } else if (std::string(tool_name) == "mem_trace")
+    {
+        fprintf(stdout, "Enabling mem_trace tool.\n");
+        tool = MEM_TRACE;
+        _tools.emplace(MEM_TRACE, std::make_shared<MemTrace>());
+    } else
     {
         fprintf(stdout, "Tool not found.\n");
         return YOSEMITE_NOT_IMPLEMENTED;
@@ -130,6 +129,8 @@ YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
 
     if (tool == APP_METRICE) {
         options.enable_access_tracking = false;
+    } else if (tool == MEM_TRACE) {
+        options.enable_access_tracking = true;
     }
 
     // check env var YOSEMITE_TORCH_PROFILE is 0 or 1
