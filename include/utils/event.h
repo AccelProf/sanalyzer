@@ -131,13 +131,15 @@ typedef struct MemCpy : public Event {
     uint64_t src_addr;
     uint64_t dst_addr;
     uint64_t size;
+    bool is_async;
+    uint32_t direction;
 
     MemCpy() {
         evt_type = EventType_MEM_COPY;
     }
     
-    MemCpy(uint64_t src_addr, uint64_t dst_addr, uint64_t size)
-        : src_addr(src_addr), dst_addr(dst_addr), size(size) {
+    MemCpy(uint64_t src_addr, uint64_t dst_addr, uint64_t size, bool is_async, uint32_t direction)
+        : src_addr(src_addr), dst_addr(dst_addr), size(size), is_async(is_async), direction(direction) {
             evt_type = EventType_MEM_COPY;
         }
 
@@ -149,13 +151,14 @@ typedef struct MemSet : public Event {
     uint64_t addr;
     uint64_t size;
     uint8_t value;
+    bool is_async;
 
     MemSet() {
         evt_type = EventType_MEM_SET;
     }
 
-    MemSet(uint64_t addr, uint64_t size, uint8_t value)
-        : addr(addr), size(size), value(value) {
+    MemSet(uint64_t addr, uint64_t size, uint32_t value, bool is_async)
+        : addr(addr), size(size), value(value), is_async(is_async) {
             evt_type = EventType_MEM_SET;
         }
 

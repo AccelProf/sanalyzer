@@ -1,4 +1,5 @@
 #include "sanalyzer.h"
+#include "tools/code_check.h"
 #include "tools/app_metric.h"
 #include "tools/mem_trace.h"
 #include "tools/tool.h"
@@ -23,14 +24,13 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
         return YOSEMITE_NOT_IMPLEMENTED;
     }
 
-    if (std::string(tool_name) == "app_metric")
-    {
-        fprintf(stdout, "Enabling app_metric tool.\n");
+    if (std::string(tool_name) == "code_check") {
+        tool = CODE_CHECK;
+        _tools.emplace(CODE_CHECK, std::make_shared<CodeCheck>());
+    } else if (std::string(tool_name) == "app_metric") {
         tool = APP_METRICE;
         _tools.emplace(APP_METRICE, std::make_shared<AppMetrics>());
-    } else if (std::string(tool_name) == "mem_trace")
-    {
-        fprintf(stdout, "Enabling mem_trace tool.\n");
+    } else if (std::string(tool_name) == "mem_trace") {
         tool = MEM_TRACE;
         _tools.emplace(MEM_TRACE, std::make_shared<MemTrace>());
     } else
@@ -38,6 +38,8 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
         fprintf(stdout, "Tool not found.\n");
         return YOSEMITE_NOT_IMPLEMENTED;
     }
+
+    fprintf(stdout, "Enabling %s tool.\n", tool_name);
     fflush(stdout);
     return YOSEMITE_SUCCESS;
 }
@@ -87,12 +89,20 @@ YosemiteResult_t yosemite_free_callback(uint64_t ptr) {
 }
 
 
-YosemiteResult_t yosemite_memcpy_callback() {
+YosemiteResult_t yosemite_memcpy_callback(uint64_t dst, uint64_t src, size_t size, bool is_async, uint32_t direction) {
+    for (auto &tool : _tools) {
+        auto mem_cpy = std::make_shared<MemCpy_t>(dst, src, size, is_async, direction);
+        tool.second->evt_callback(mem_cpy);
+    }
     return YOSEMITE_SUCCESS;
 }
 
 
-YosemiteResult_t yosemite_memset_callback() {
+YosemiteResult_t yosemite_memset_callback(uint64_t dst, size_t size, int value, bool is_async) {
+    for (auto &tool : _tools) {
+        auto mem_set = std::make_shared<MemSet_t>(dst, size, value, is_async);
+        tool.second->evt_callback(mem_set);
+    }
     return YOSEMITE_SUCCESS;
 }
 
@@ -127,7 +137,9 @@ YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
     AnalysisTool_t tool;
     yosemite_tool_enable(tool);
 
-    if (tool == APP_METRICE) {
+    if (tool == CODE_CHECK) {
+        options.enable_access_tracking = false;
+    } else if (tool == APP_METRICE) {
         options.enable_access_tracking = false;
     } else if (tool == MEM_TRACE) {
         options.enable_access_tracking = true;

@@ -26,9 +26,9 @@ YosemiteResult_t yosemite_alloc_callback(uint64_t ptr, size_t size, int type);
 
 YosemiteResult_t yosemite_free_callback(uint64_t ptr);
 
-YosemiteResult_t yosemite_memcpy_callback();
+YosemiteResult_t yosemite_memcpy_callback(uint64_t dst, uint64_t src, size_t size, bool is_async, uint32_t direction);
 
-YosemiteResult_t yosemite_memset_callback();
+YosemiteResult_t yosemite_memset_callback(uint64_t dst, size_t size, int value, bool is_async);
 
 YosemiteResult_t yosemite_kernel_start_callback(std::string kernel_name);
 
