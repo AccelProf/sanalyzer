@@ -9,7 +9,11 @@ namespace yosemite {
 
 class CodeCheck final : public Tool {
 public:
-    CodeCheck() : Tool(CODE_CHECK) {}
+    CodeCheck() : Tool(CODE_CHECK) {
+        init();
+    }
+
+    void init();
 
     ~CodeCheck() {}
 

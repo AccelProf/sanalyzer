@@ -30,6 +30,11 @@ all: dirs lib
 dirs: $(OBJ_DIR) $(LIB_DIR)
 lib: $(LIB)
 
+CXX_BACKTRACE_DIR := cxx_backtrace/cxx_backtrace/
+INCLUDES ?= -I$(CXX_BACKTRACE_DIR)/include
+LDFLAGS += -L$(CXX_BACKTRACE_DIR)/lib -Wl,-rpath=$(CXX_BACKTRACE_DIR)/lib
+LINK_LIBS ?= -lcxx_backtrace
+
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
@@ -37,13 +42,13 @@ $(LIB_DIR):
 	mkdir -p $(LIB_DIR)
 
 $(LIB): $(OBJS)
-	$(CXX) $(LDFLAGS) -fPIC -shared -o $@ $^ $(LDFLAGS)
+	$(CXX) $(LDFLAGS) -fPIC -shared -o $@ $^ $(LINK_LIBS)
 
 $(OBJ_DIR)%.o: $(SRC_DIR)%.cpp
-	$(CXX) -I$(INC_DIR) -I$(GPU_PATCH_HEADER_DIR) $(CFLAGS) -fPIC -c $< -o $@
+	$(CXX) -I$(INC_DIR) $(INCLUDES) -I$(GPU_PATCH_HEADER_DIR) $(CFLAGS) -fPIC -c $< -o $@
 
 $(OBJ_DIR)%.o: $(SRC_DIR)/*/%.cpp
-	$(CXX) -I$(INC_DIR) -I$(GPU_PATCH_HEADER_DIR) $(CFLAGS) -fPIC -c $< -o $@
+	$(CXX) -I$(INC_DIR) $(INCLUDES) -I$(GPU_PATCH_HEADER_DIR) $(CFLAGS) -fPIC -c $< -o $@
 
 .PHONY: clean
 clean:

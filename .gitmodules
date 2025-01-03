@@ -1,0 +1,3 @@
+[submodule "cxx_backtrace"]
+	path = cxx_backtrace
+	url = git@github.com:CUProf/cxx_backtrace.git

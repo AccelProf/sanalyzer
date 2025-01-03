@@ -2,6 +2,7 @@
 #include "tools/code_check.h"
 #include "utils/helper.h"
 #include "gpu_patch.h"
+#include "cxx_backtrace.h"
 
 #include <algorithm>
 #include <cassert>
@@ -25,6 +26,15 @@ static std::map<uint64_t, std::shared_ptr<MemAlloc_t>> alloc_events;
 static std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
 
 
+void CodeCheck::init() {
+    const char* env_name = std::getenv("CU_PROF_HOME");
+    std::string lib_path;
+    if (env_name) {
+        lib_path = std::string(env_name) + "/lib/libcompute_sanitizer.so";
+    }
+    init_back_trace(lib_path.c_str());
+
+}
 
 
 void CodeCheck::evt_callback(EventPtr_t evt) {
@@ -83,6 +93,8 @@ void CodeCheck::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
     std::cout << mem->src_addr << " " << mem->dst_addr << " " << mem->size << std::endl;
     std::cout << "Is async: " << mem->is_async << std::endl;
     std::cout << "Direction: " << mem->direction << std::endl;
+
+    std::cout << get_back_trace() << std::endl;
 
     _timer.increment(true);
 }
