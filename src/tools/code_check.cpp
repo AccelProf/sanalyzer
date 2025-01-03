@@ -3,6 +3,7 @@
 #include "utils/helper.h"
 #include "gpu_patch.h"
 #include "cxx_backtrace.h"
+#include "python_frame.h"
 
 #include <algorithm>
 #include <cassert>
@@ -95,6 +96,7 @@ void CodeCheck::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
     std::cout << "Direction: " << mem->direction << std::endl;
 
     std::cout << get_back_trace() << std::endl;
+    std::cout << get_py_frames() << std::endl;
 
     _timer.increment(true);
 }

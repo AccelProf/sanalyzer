@@ -35,6 +35,12 @@ INCLUDES ?= -I$(CXX_BACKTRACE_DIR)/include
 LDFLAGS += -L$(CXX_BACKTRACE_DIR)/lib -Wl,-rpath=$(CXX_BACKTRACE_DIR)/lib
 LINK_LIBS ?= -lcxx_backtrace
 
+PY_FRAME_DIR := py_frame/py_frame/
+INCLUDES += -I$(PY_FRAME_DIR)/include
+LDFLAGS += -L$(PY_FRAME_DIR)/lib -Wl,-rpath=$(PY_FRAME_DIR)/lib
+LINK_LIBS += -lpy_frame
+
+
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
