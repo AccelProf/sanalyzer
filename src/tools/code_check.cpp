@@ -92,7 +92,7 @@ void CodeCheck::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
     
     std::cout << "Memory copy detected" << std::endl;
     std::cout << mem->src_addr << " " << mem->dst_addr << " " << mem->size << std::endl;
-    std::cout << "Is async: " << mem->is_async << std::endl;
+    std::cout << "cudaMemcpy is async: " << mem->is_async << std::endl;
     std::cout << "Direction: " << mem->direction << std::endl;
 
     std::cout << get_back_trace() << std::endl;
@@ -103,7 +103,13 @@ void CodeCheck::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
 
 
 void CodeCheck::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
-    
+
+    std::cout << "Memory set detected" << std::endl;
+    std::cout << mem->addr << " " << mem->size << " " << mem->value << std::endl;
+    std::cout << "cudaMemcpy is async: " << mem->is_async << std::endl;
+
+    std::cout << get_back_trace() << std::endl;
+    std::cout << get_py_frames() << std::endl;    
 
     _timer.increment(true);
 }
