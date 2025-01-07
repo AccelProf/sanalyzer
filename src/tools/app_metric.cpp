@@ -23,6 +23,12 @@ typedef struct Stats{
     uint64_t avg_mem_accesses;
     uint64_t tot_mem_accesses;
     std::string max_mem_accesses_kernel;
+    uint64_t max_objs_per_kernel;
+    uint64_t avg_objs_per_kernel;
+    uint64_t tot_objs_per_kernel;
+    uint64_t max_obj_size_per_kernel;
+    uint64_t avg_obj_size_per_kernel;
+    uint64_t tot_obj_size_per_kernel;
 
     Stats() = default;
 
@@ -104,17 +110,43 @@ void AppMetrics::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
 
 void AppMetrics::gpu_data_analysis(void* data, uint64_t size) {
     MemoryAccessTracker* tracker = (MemoryAccessTracker*)data;
+    MemoryAccessState* states = tracker->states;
+
+    uint32_t touched_objects = 0;
+    uint32_t touched_objects_size = 0;
+    for (uint32_t i = 0; i < states->size; i++) {
+        if (states->touch[i] != 0) {
+            touched_objects++;
+            touched_objects_size += states->start_end[i].end - states->start_end[i].start;
+        }
+    }
 
     auto event = std::prev(kernel_events.end())->second;
     event->mem_accesses = tracker->accessCount;
+    event->touched_objects = touched_objects;
+    event->touched_objects_size = touched_objects_size;
+}
+
+
+void AppMetrics::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
+    MemoryRange* _ranges = (MemoryRange*)ranges;
+    *count = 0;
+    for (auto mem : active_memories) {
+        _ranges[*count].start = mem.second->addr;
+        _ranges[*count].end = mem.second->addr + mem.second->size;
+        (*count)++;
+        if (*count >= limit) {
+            break;
+        }
+    }
 }
 
 
 void AppMetrics::flush() {
-    const char* env_filename = std::getenv("APP_NAME");
+    const char* env_filename = std::getenv("YOSEMITE_APP_NAME");
     std::string filename;
     if (env_filename) {
-        fprintf(stdout, "APP_NAME: %s\n", env_filename);
+        fprintf(stdout, "YOSEMITE_APP_NAME: %s\n", env_filename);
         filename = std::string(env_filename) + "_" + get_current_date_n_time();
     } else {
         filename = "metrics_" + get_current_date_n_time();
@@ -137,13 +169,28 @@ void AppMetrics::flush() {
 
     count = 0;
     for (auto event : kernel_events) {
-        out << "Kernel " << count << " (refs=" << event.second->mem_accesses
+        out << "Kernel " << count << " ("
+            << "refs=" << event.second->mem_accesses
+            << ", objs=" << event.second->touched_objects
+            << ", obj_size=" << event.second->touched_objects_size
+            << ", " << format_size(event.second->touched_objects_size)
             << "):\t" << event.second->kernel_name << std::endl;
         _stats.tot_mem_accesses += event.second->mem_accesses;
         if (_stats.max_mem_accesses_per_kernel < event.second->mem_accesses) {
             _stats.max_mem_accesses_kernel = event.second->kernel_name;
             _stats.max_mem_accesses_per_kernel = event.second->mem_accesses;
         }
+
+        _stats.tot_objs_per_kernel += event.second->touched_objects;
+        if (_stats.max_objs_per_kernel < event.second->touched_objects) {
+            _stats.max_objs_per_kernel = event.second->touched_objects;
+        }
+
+        _stats.tot_obj_size_per_kernel += event.second->touched_objects_size;
+        if (_stats.max_obj_size_per_kernel < event.second->touched_objects_size) {
+            _stats.max_obj_size_per_kernel = event.second->touched_objects_size;
+        }
+
         count++;
     }
     out << std::endl;
@@ -162,10 +209,21 @@ void AppMetrics::flush() {
     out << std::endl;
 
     _stats.avg_mem_accesses = _stats.tot_mem_accesses / _stats.num_kernels;
+    _stats.avg_objs_per_kernel = _stats.tot_objs_per_kernel / _stats.num_kernels;
+    _stats.avg_obj_size_per_kernel = _stats.tot_obj_size_per_kernel / _stats.num_kernels;
     out << "Number of allocations: " << _stats.num_allocs << std::endl;
     out << "Number of kernels: " << _stats.num_kernels << std::endl;
     out << "Maximum memory usage: " << _stats.max_mem_usage
         << "B (" << format_size(_stats.max_mem_usage) << ")" << std::endl;
+    out << "------------------------------" << std::endl;
+    out << "Maximum objects per kernel: " << _stats.max_objs_per_kernel << std::endl;
+    out << "Average objects per kernel: " << _stats.avg_objs_per_kernel << std::endl;
+    out << "Total objects per kernel: " << _stats.tot_objs_per_kernel << std::endl;
+    out << "Maximum object size per kernel: " << _stats.max_obj_size_per_kernel
+        << "B (" << format_size(_stats.max_obj_size_per_kernel) << ")" << std::endl;
+    out << "Average object size per kernel: " << _stats.avg_obj_size_per_kernel
+        << "B (" << format_size(_stats.avg_obj_size_per_kernel) << ")" << std::endl;
+    out << "------------------------------" << std::endl;
     out << "Maximum memory accesses kernel: " << _stats.max_mem_accesses_kernel
         << std::endl;
     out << "Maximum memory accesses per kernel: " << _stats.max_mem_accesses_per_kernel

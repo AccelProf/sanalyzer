@@ -164,6 +164,11 @@ void CodeCheck::gpu_data_analysis(void* data, uint64_t size) {
 }
 
 
+void CodeCheck::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
+
+}
+
+
 void CodeCheck::flush() {
     
 }

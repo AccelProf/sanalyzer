@@ -143,9 +143,11 @@ YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
     if (tool == CODE_CHECK) {
         options.patch_name = GPU_NO_PATCH;
     } else if (tool == APP_METRICE) {
-        options.patch_name = GPU_MEMORY_ACCESS_COUNT;
+        options.patch_name = GPU_PATCH_APP_METRIC;
+        options.patch_file = "gpu_patch_app_metric.fatbin";
     } else if (tool == MEM_TRACE) {
-        options.patch_name = GPU_MEMORY_ACCESS;
+        options.patch_name = GPU_PATCH_MEM_TRACE;
+        options.patch_file = "gpu_patch_mem_trace.fatbin";
     }
 
     return YOSEMITE_SUCCESS;
@@ -173,6 +175,14 @@ YosemiteResult_t yosemite_tensor_free_callback(uint64_t ptr, int64_t alloc_size,
     for (auto &tool : _tools) {
         auto ten_free = std::make_shared<TenFree_t>(ptr, alloc_size, total_allocated, total_reserved);
         tool.second->evt_callback(ten_free);
+    }
+    return YOSEMITE_SUCCESS;
+}
+
+
+YosemiteResult_t yosemite_query_active_ranges(void* ranges, uint32_t limit, uint32_t* count) {
+    for (auto &tool : _tools) {
+        tool.second->query_ranges(ranges, limit, count);
     }
     return YOSEMITE_SUCCESS;
 }

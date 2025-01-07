@@ -131,9 +131,9 @@ void MemTrace::kernel_trace_flush(std::shared_ptr<KernelLauch_t> kernel) {
 
 void MemTrace::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
     if (!first_kernel_finished) {
-        const char* env_trace_folder_name = std::getenv("APP_NAME");
+        const char* env_trace_folder_name = std::getenv("YOSEMITE_APP_NAME");
         if (env_trace_folder_name != nullptr) {
-            fprintf(stdout, "APP_NAME: %s\n", env_trace_folder_name);
+            fprintf(stdout, "YOSEMITE_APP_NAME: %s\n", env_trace_folder_name);
             trace_folder_name = "traces_" + std::string(env_trace_folder_name)
                                 + "_" + get_current_date_n_time();
         } else {
@@ -204,6 +204,11 @@ void MemTrace::gpu_data_analysis(void* data, uint64_t size) {
             }
         }
     }
+
+}
+
+
+void MemTrace::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
 
 }
 

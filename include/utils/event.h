@@ -63,6 +63,8 @@ typedef struct KernelLauch : public Event {
     std::string kernel_name;
     uint32_t kernel_id;
     uint64_t mem_accesses;
+    uint32_t touched_objects;
+    uint32_t touched_objects_size;
 
     KernelLauch() {
         evt_type = EventType_KERNEL_LAUNCH;

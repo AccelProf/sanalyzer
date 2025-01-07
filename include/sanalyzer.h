@@ -14,15 +14,15 @@ typedef enum {
 
 
 typedef enum {
-    GPU_NO_PATCH = -1,
-    GPU_MEMORY_ACCESS = 0,
-    GPU_MEMORY_ACCESS_COUNT = 1,
-    GPU_KERNEL_TOUCH = 2,
+    GPU_NO_PATCH = 0,
+    GPU_PATCH_APP_METRIC = 1,
+    GPU_PATCH_MEM_TRACE = 2,
 } SanitizerPatchName_t;
 
 
 typedef struct SanitizerOptions {
     SanitizerPatchName_t patch_name;
+    std::string patch_file;
 
     SanitizerOptions() = default;
     ~SanitizerOptions() = default;
@@ -54,6 +54,8 @@ YosemiteResult_t yosemite_tensor_malloc_callback(uint64_t ptr, int64_t alloc_siz
 
 YosemiteResult_t yosemite_tensor_free_callback(uint64_t ptr, int64_t alloc_size,
                                 int64_t total_allocated, int64_t total_reserved);
+
+YosemiteResult_t yosemite_query_active_ranges(void* ranges, uint32_t limit, uint32_t* count);
 
 
 #endif // YOSEMITE_H

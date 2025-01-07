@@ -27,6 +27,8 @@ public:
 
     void gpu_data_analysis(void* data, uint64_t size);
 
+    void query_ranges(void* ranges, uint32_t limit, uint32_t* count);
+
     void evt_callback(EventPtr_t evt);
 
     void flush();
