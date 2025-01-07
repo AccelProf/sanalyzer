@@ -1,6 +1,7 @@
 
 #include "tools/code_check.h"
 #include "utils/helper.h"
+#include "utils/hash.h"
 #include "gpu_patch.h"
 #include "cxx_backtrace.h"
 #include "python_frame.h"
@@ -27,13 +28,25 @@ static std::map<uint64_t, std::shared_ptr<MemAlloc_t>> alloc_events;
 static std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
 
 
+std::string vector2str(std::vector<std::string> &vec, int skip_first = 0, int skip_last = 0) {
+    if (skip_first + skip_last >= vec.size()) {
+        printf("Skip first and skip last are larger than the vector size\n");
+        return "";
+    }
+    std::string str;
+    for (size_t i = skip_first; i < vec.size() - skip_last; i++) {
+        str += vec[i] + "\n";
+    }
+    return str;
+}
+
 void CodeCheck::init() {
     const char* env_name = std::getenv("CU_PROF_HOME");
     std::string lib_path;
     if (env_name) {
         lib_path = std::string(env_name) + "/lib/libcompute_sanitizer.so";
     }
-    init_back_trace(lib_path.c_str());
+    init_backtrace(lib_path.c_str());
 
 }
 
@@ -95,10 +108,15 @@ void CodeCheck::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
     std::cout << "cudaMemcpy is async: " << mem->is_async << std::endl;
     std::cout << "Direction: " << mem->direction << std::endl;
 
-    std::string back_trace = get_back_trace();
-    std::string py_frames = get_py_frames();
-    std::cout << back_trace << std::endl;
-    std::cout << py_frames << std::endl;
+    auto backtraces = get_backtrace();
+    auto py_frames = get_pyframes();
+    auto bt_str = vector2str(backtraces, 10, 10);
+    auto pf_str = vector2str(py_frames);
+
+    std::cout << bt_str << std::endl;
+    std::cout << pf_str << std::endl;
+    std::cout << "Backtrace: " << sha256(bt_str) << std::endl;
+    std::cout << "Python frames: " << sha256(pf_str) << std::endl;
 
     _timer.increment(true);
 }
@@ -111,11 +129,13 @@ void CodeCheck::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
     std::cout << "cudaMemset is async: " << mem->is_async << std::endl;
     std::cout << "Set value: " << mem->value << std::endl;
 
-    std::string back_trace = get_back_trace();
-    std::string py_frames = get_py_frames();
+    // std::string back_trace = get_backtrace_full();
+    // std::string py_frames = get_py_frames();
 
-    std::cout << back_trace << std::endl;
-    std::cout << py_frames << std::endl;
+    // std::cout << back_trace << std::endl;
+    // std::cout << py_frames << std::endl;
+
+    sha256("hello");
 
 
     _timer.increment(true);
