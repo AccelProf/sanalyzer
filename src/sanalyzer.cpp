@@ -17,9 +17,7 @@ static std::map<AnalysisTool_t, std::shared_ptr<Tool>> _tools;
 
 YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
     const char* tool_name = std::getenv("YOSEMITE_TOOL_NAME");
-    if (tool_name) {
-        fprintf(stdout, "YOSEMITE_TOOL_NAME: %s\n", tool_name);
-    } else {
+    if (!tool_name) {
         fprintf(stdout, "No tool name specified.\n");
         return YOSEMITE_NOT_IMPLEMENTED;
     }
