@@ -141,11 +141,11 @@ YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
     }
 
     if (tool == CODE_CHECK) {
-        options.enable_access_tracking = false;
+        options.patch_name = GPU_NO_PATCH;
     } else if (tool == APP_METRICE) {
-        options.enable_access_tracking = false;
+        options.patch_name = GPU_MEMORY_ACCESS_COUNT;
     } else if (tool == MEM_TRACE) {
-        options.enable_access_tracking = true;
+        options.patch_name = GPU_MEMORY_ACCESS;
     }
 
     return YOSEMITE_SUCCESS;

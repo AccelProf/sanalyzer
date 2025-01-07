@@ -13,9 +13,16 @@ typedef enum {
 } YosemiteResult_t;
 
 
+typedef enum {
+    GPU_NO_PATCH = -1,
+    GPU_MEMORY_ACCESS = 0,
+    GPU_MEMORY_ACCESS_COUNT = 1,
+    GPU_KERNEL_TOUCH = 2,
+} SanitizerPatchName_t;
+
+
 typedef struct SanitizerOptions {
-    bool enable_access_tracking;
-    bool enable_touch_tracking;
+    SanitizerPatchName_t patch_name;
 
     SanitizerOptions() = default;
     ~SanitizerOptions() = default;
