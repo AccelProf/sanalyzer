@@ -133,7 +133,10 @@ YosemiteResult_t yosemite_gpu_data_analysis(void* data, uint64_t size) {
 
 YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
     AnalysisTool_t tool;
-    yosemite_tool_enable(tool);
+    YosemiteResult_t res = yosemite_tool_enable(tool);
+    if (res != YOSEMITE_SUCCESS) {
+        return res;
+    }
 
     if (tool == CODE_CHECK) {
         options.enable_access_tracking = false;

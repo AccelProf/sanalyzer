@@ -29,7 +29,7 @@ static std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
 
 
 std::string vector2str(std::vector<std::string> &vec, int skip_first = 0, int skip_last = 0) {
-    if (skip_first + skip_last >= vec.size()) {
+    if (skip_first + skip_last > vec.size()) {
         printf("Skip first and skip last are larger than the vector size\n");
         return "";
     }
@@ -110,7 +110,7 @@ void CodeCheck::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
 
     auto backtraces = get_backtrace();
     auto py_frames = get_pyframes();
-    auto bt_str = vector2str(backtraces, 10, 10);
+    auto bt_str = vector2str(backtraces);
     auto pf_str = vector2str(py_frames);
 
     std::cout << bt_str << std::endl;
@@ -129,14 +129,15 @@ void CodeCheck::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
     std::cout << "cudaMemset is async: " << mem->is_async << std::endl;
     std::cout << "Set value: " << mem->value << std::endl;
 
-    // std::string back_trace = get_backtrace_full();
-    // std::string py_frames = get_py_frames();
+    // auto backtraces = get_backtrace();
+    // auto py_frames = get_pyframes();
+    // auto bt_str = vector2str(backtraces);
+    // auto pf_str = vector2str(py_frames);
 
-    // std::cout << back_trace << std::endl;
-    // std::cout << py_frames << std::endl;
-
-    sha256("hello");
-
+    // std::cout << bt_str << std::endl;
+    // std::cout << pf_str << std::endl;
+    // std::cout << "Backtrace: " << sha256(bt_str) << std::endl;
+    // std::cout << "Python frames: " << sha256(pf_str) << std::endl;
 
     _timer.increment(true);
 }
