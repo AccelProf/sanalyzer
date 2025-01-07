@@ -5,7 +5,7 @@
 #include <string>
 #include <memory>
 
-typedef unsigned long long DevPtr;
+typedef uint64_t DevPtr;
 
 typedef struct Timer{
     uint64_t access_timer;
@@ -167,16 +167,17 @@ typedef struct MemSet : public Event {
 
 typedef struct TenAlloc : public Event {
     DevPtr addr;
-    uint64_t size;
+    int64_t size;
+    int64_t allocated_size;
+    int64_t reserved_size;
     uint64_t release_time;
-    int alloc_type;
 
     TenAlloc() {
         evt_type = EventType_TEN_ALLOC;
     }
 
-    TenAlloc(DevPtr addr, uint64_t size)
-        : addr(addr), size(size) {
+    TenAlloc(DevPtr addr, int64_t size, int64_t allocated_size, int64_t reserved_size)
+        : addr(addr), size(size), allocated_size(allocated_size), reserved_size(reserved_size) {
             evt_type = EventType_TEN_ALLOC;
         }
 
@@ -185,14 +186,16 @@ typedef struct TenAlloc : public Event {
 
 typedef struct TenFree : public Event {
     DevPtr addr;
-    uint64_t size;
+    int64_t size;
+    int64_t allocated_size;
+    int64_t reserved_size;
 
     TenFree() {
         evt_type = EventType_TEN_FREE;
     }
 
-    TenFree(DevPtr addr)
-        : addr(addr) {
+    TenFree(DevPtr addr, int64_t size, int64_t allocated_size, int64_t reserved_size)
+        : addr(addr), size(size), allocated_size(allocated_size), reserved_size(reserved_size) {
             evt_type = EventType_TEN_FREE;
         }
 

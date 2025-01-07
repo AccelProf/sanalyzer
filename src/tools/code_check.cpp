@@ -71,6 +71,12 @@ void CodeCheck::evt_callback(EventPtr_t evt) {
         case EventType_MEM_SET:
             mem_set_callback(std::dynamic_pointer_cast<MemSet_t>(evt));
             break;
+        case EventType_TEN_ALLOC:
+            ten_alloc_callback(std::dynamic_pointer_cast<TenAlloc_t>(evt));
+            break;
+        case EventType_TEN_FREE:
+            ten_free_callback(std::dynamic_pointer_cast<TenFree_t>(evt));
+            break;
         default:
             break;
     }
@@ -140,6 +146,16 @@ void CodeCheck::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
     // std::cout << "Python frames: " << sha256(pf_str) << std::endl;
 
     _timer.increment(true);
+}
+
+
+void CodeCheck::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
+    std::cout << "[Tensor malloc] " << ten->addr << " " << ten->size << std::endl;
+}
+
+
+void CodeCheck::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
+    std::cout << "[Tensor free] " << ten->addr << " " << ten->size << std::endl;
 }
 
 

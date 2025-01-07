@@ -29,6 +29,10 @@ public:
 
     void mem_set_callback(std::shared_ptr<MemSet_t> mem);
 
+    void ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten);
+
+    void ten_free_callback(std::shared_ptr<TenFree_t> ten);
+
     void evt_callback(EventPtr_t evt);
 
     void gpu_data_analysis(void* data, uint64_t size);

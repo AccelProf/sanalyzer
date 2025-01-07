@@ -75,7 +75,7 @@ static std::string GetMemoryTypeString(MemoryAccessType type)
 
 
 MemTrace::MemTrace() : Tool(MEM_TRACE) {
-    const char* torch_prof = std::getenv("YOSEMITE_TORCH_PROFILE");
+    const char* torch_prof = std::getenv("TORCH_PROFILE_ENABLED");
     if (torch_prof && std::string(torch_prof) == "1") {
         fprintf(stdout, "Enabling torch profiler in MemTrace.\n");
         _torch_enabled = true;

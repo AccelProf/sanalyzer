@@ -55,12 +55,6 @@ YosemiteResult_t yosemite_flush() {
     return YOSEMITE_SUCCESS;
 }
 
-
-YosemiteResult_t yosemite_torch_prof_enable() {
-    return YOSEMITE_SUCCESS;
-}
-
-
 /****************************************************************************************
  ********************************** Interface functions *********************************
 ****************************************************************************************/
@@ -131,6 +125,14 @@ YosemiteResult_t yosemite_gpu_data_analysis(void* data, uint64_t size) {
 }
 
 
+YosemiteResult_t yosemite_torch_prof_enable() {
+    fprintf(stdout, "Enabling torch profiler.\n");
+    fprintf(stdout, "================================================================================\n");
+    fflush(stdout);
+    return YOSEMITE_SUCCESS;
+}
+
+
 YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
     AnalysisTool_t tool;
     YosemiteResult_t res = yosemite_tool_enable(tool);
@@ -146,15 +148,6 @@ YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
         options.enable_access_tracking = true;
     }
 
-    // check env var YOSEMITE_TORCH_PROFILE is 0 or 1
-    const char* torch_prof = std::getenv("YOSEMITE_TORCH_PROFILE");
-    if (torch_prof && std::string(torch_prof) == "1") {
-        fprintf(stdout, "Enabling torch profiler.\n");
-        yosemite_torch_prof_enable();
-    }
-
-    fprintf(stdout, "================================================================================\n");
-    fflush(stdout);
     return YOSEMITE_SUCCESS;
 }
 
@@ -168,7 +161,7 @@ YosemiteResult_t yosemite_terminate() {
 YosemiteResult_t yosemite_tensor_malloc_callback(uint64_t ptr, int64_t alloc_size,
                                     int64_t total_allocated, int64_t total_reserved) {
     for (auto &tool : _tools) {
-        auto ten_alloc = std::make_shared<TenAlloc_t>(ptr, alloc_size);
+        auto ten_alloc = std::make_shared<TenAlloc_t>(ptr, alloc_size, total_allocated, total_reserved);
         tool.second->evt_callback(ten_alloc);
     }
     return YOSEMITE_SUCCESS;
@@ -178,7 +171,7 @@ YosemiteResult_t yosemite_tensor_malloc_callback(uint64_t ptr, int64_t alloc_siz
 YosemiteResult_t yosemite_tensor_free_callback(uint64_t ptr, int64_t alloc_size,
                                     int64_t total_allocated, int64_t total_reserved) {
     for (auto &tool : _tools) {
-        auto ten_free = std::make_shared<TenFree_t>(ptr);
+        auto ten_free = std::make_shared<TenFree_t>(ptr, alloc_size, total_allocated, total_reserved);
         tool.second->evt_callback(ten_free);
     }
     return YOSEMITE_SUCCESS;
