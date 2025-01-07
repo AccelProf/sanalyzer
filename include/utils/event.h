@@ -150,7 +150,7 @@ typedef struct MemSet : public Event {
 
     uint64_t addr;
     uint64_t size;
-    uint8_t value;
+    uint32_t value;
     bool is_async;
 
     MemSet() {

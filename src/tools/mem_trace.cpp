@@ -187,7 +187,7 @@ void MemTrace::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
 }
 
 
-void MemTrace::gpu_data_analysis(void* data, size_t size) {
+void MemTrace::gpu_data_analysis(void* data, uint64_t size) {
     MemoryAccess* accesses_buffer = (MemoryAccess*)data;
     for (int i = 0; i < size; i++) {
         auto& accesses = accesses_buffer[i];

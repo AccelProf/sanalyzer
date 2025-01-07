@@ -68,7 +68,7 @@ YosemiteResult_t yosemite_torch_prof_enable() {
 ****************************************************************************************/
 
 
-YosemiteResult_t yosemite_alloc_callback(uint64_t ptr, size_t size, int type) {
+YosemiteResult_t yosemite_alloc_callback(uint64_t ptr, uint64_t size, int type) {
     for (auto &tool : _tools) {
         auto mem_alloc = std::make_shared<MemAlloc_t>(ptr, size, type);
         tool.second->evt_callback(mem_alloc);
@@ -89,7 +89,7 @@ YosemiteResult_t yosemite_free_callback(uint64_t ptr) {
 }
 
 
-YosemiteResult_t yosemite_memcpy_callback(uint64_t dst, uint64_t src, size_t size, bool is_async, uint32_t direction) {
+YosemiteResult_t yosemite_memcpy_callback(uint64_t dst, uint64_t src, uint64_t size, bool is_async, uint32_t direction) {
     for (auto &tool : _tools) {
         auto mem_cpy = std::make_shared<MemCpy_t>(dst, src, size, is_async, direction);
         tool.second->evt_callback(mem_cpy);
@@ -98,7 +98,7 @@ YosemiteResult_t yosemite_memcpy_callback(uint64_t dst, uint64_t src, size_t siz
 }
 
 
-YosemiteResult_t yosemite_memset_callback(uint64_t dst, size_t size, int value, bool is_async) {
+YosemiteResult_t yosemite_memset_callback(uint64_t dst, uint32_t size, int value, bool is_async) {
     for (auto &tool : _tools) {
         auto mem_set = std::make_shared<MemSet_t>(dst, size, value, is_async);
         tool.second->evt_callback(mem_set);
@@ -125,7 +125,7 @@ YosemiteResult_t yosemite_kernel_end_callback(std::string kernel_name) {
 }
 
 
-YosemiteResult_t yosemite_gpu_data_analysis(void* data, size_t size) {
+YosemiteResult_t yosemite_gpu_data_analysis(void* data, uint64_t size) {
     for (auto &tool : _tools) {
         tool.second->gpu_data_analysis(data, size);
     }
@@ -152,6 +152,8 @@ YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
         yosemite_torch_prof_enable();
     }
 
+    fprintf(stdout, "================================================================================\n");
+    fflush(stdout);
     return YOSEMITE_SUCCESS;
 }
 

@@ -14,7 +14,7 @@ public:
 
     virtual void evt_callback(EventPtr_t evt) = 0;
 
-    virtual void gpu_data_analysis(void* data, size_t size) = 0;
+    virtual void gpu_data_analysis(void* data, uint64_t size) = 0;
 
     virtual void flush() = 0;
 protected:

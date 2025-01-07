@@ -95,8 +95,10 @@ void CodeCheck::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
     std::cout << "cudaMemcpy is async: " << mem->is_async << std::endl;
     std::cout << "Direction: " << mem->direction << std::endl;
 
-    std::cout << get_back_trace() << std::endl;
-    std::cout << get_py_frames() << std::endl;
+    std::string back_trace = get_back_trace();
+    std::string py_frames = get_py_frames();
+    std::cout << back_trace << std::endl;
+    std::cout << py_frames << std::endl;
 
     _timer.increment(true);
 }
@@ -106,16 +108,21 @@ void CodeCheck::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
 
     std::cout << "Memory set detected" << std::endl;
     std::cout << mem->addr << " " << mem->size << " " << mem->value << std::endl;
-    std::cout << "cudaMemcpy is async: " << mem->is_async << std::endl;
+    std::cout << "cudaMemset is async: " << mem->is_async << std::endl;
+    std::cout << "Set value: " << mem->value << std::endl;
 
-    std::cout << get_back_trace() << std::endl;
-    std::cout << get_py_frames() << std::endl;    
+    std::string back_trace = get_back_trace();
+    std::string py_frames = get_py_frames();
+
+    std::cout << back_trace << std::endl;
+    std::cout << py_frames << std::endl;
+
 
     _timer.increment(true);
 }
 
 
-void CodeCheck::gpu_data_analysis(void* data, size_t size) {
+void CodeCheck::gpu_data_analysis(void* data, uint64_t size) {
     
 }
 

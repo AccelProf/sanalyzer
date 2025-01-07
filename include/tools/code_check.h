@@ -31,7 +31,7 @@ public:
 
     void evt_callback(EventPtr_t evt);
 
-    void gpu_data_analysis(void* data, size_t size);
+    void gpu_data_analysis(void* data, uint64_t size);
 
     void flush();
 };

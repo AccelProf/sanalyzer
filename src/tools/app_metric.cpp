@@ -102,7 +102,7 @@ void AppMetrics::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
 }
 
 
-void AppMetrics::gpu_data_analysis(void* data, size_t size) {
+void AppMetrics::gpu_data_analysis(void* data, uint64_t size) {
     MemoryAccessTracker* tracker = (MemoryAccessTracker*)data;
 
     auto event = std::prev(kernel_events.end())->second;

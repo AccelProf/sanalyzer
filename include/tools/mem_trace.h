@@ -25,7 +25,7 @@ public:
 
     void ten_free_callback(std::shared_ptr<TenFree_t> ten);
 
-    void gpu_data_analysis(void* data, size_t size);
+    void gpu_data_analysis(void* data, uint64_t size);
 
     void evt_callback(EventPtr_t evt);
 
