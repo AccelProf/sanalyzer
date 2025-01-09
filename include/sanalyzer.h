@@ -23,7 +23,7 @@ typedef enum {
 typedef struct SanitizerOptions {
     SanitizerPatchName_t patch_name;
     std::string patch_file;
-    bool compute_sanitizer_enabled = true;
+    volatile bool skip_sanitizer_callback = false;
 
     SanitizerOptions() = default;
     ~SanitizerOptions() = default;
