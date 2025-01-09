@@ -110,7 +110,7 @@ void AppMetrics::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
 
 void AppMetrics::gpu_data_analysis(void* data, uint64_t size) {
     MemoryAccessTracker* tracker = (MemoryAccessTracker*)data;
-    MemoryAccessState* states = tracker->states;
+    MemoryAccessState* states = tracker->access_state;
 
     uint32_t touched_objects = 0;
     uint32_t touched_objects_size = 0;
