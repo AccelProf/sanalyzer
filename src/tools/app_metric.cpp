@@ -208,9 +208,11 @@ void AppMetrics::flush() {
     }
     out << std::endl;
 
-    _stats.avg_mem_accesses = _stats.tot_mem_accesses / _stats.num_kernels;
-    _stats.avg_objs_per_kernel = _stats.tot_objs_per_kernel / _stats.num_kernels;
-    _stats.avg_obj_size_per_kernel = _stats.tot_obj_size_per_kernel / _stats.num_kernels;
+    if (_stats.num_kernels > 0) {   // could be 0 when using python interface
+        _stats.avg_mem_accesses = _stats.tot_mem_accesses / _stats.num_kernels;
+        _stats.avg_objs_per_kernel = _stats.tot_objs_per_kernel / _stats.num_kernels;
+        _stats.avg_obj_size_per_kernel = _stats.tot_obj_size_per_kernel / _stats.num_kernels;
+    }
     out << "Number of allocations: " << _stats.num_allocs << std::endl;
     out << "Number of kernels: " << _stats.num_kernels << std::endl;
     out << "Maximum memory usage: " << _stats.max_mem_usage
