@@ -146,7 +146,7 @@ void AppMetrics::flush() {
     const char* env_filename = std::getenv("YOSEMITE_APP_NAME");
     std::string filename;
     if (env_filename) {
-        fprintf(stdout, "YOSEMITE_APP_NAME: %s\n", env_filename);
+        // fprintf(stdout, "YOSEMITE_APP_NAME: %s\n", env_filename);
         filename = std::string(env_filename) + "_" + get_current_date_n_time();
     } else {
         filename = "metrics_" + get_current_date_n_time();

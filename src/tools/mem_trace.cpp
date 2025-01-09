@@ -96,7 +96,7 @@ void MemTrace::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
     if (!first_kernel_finished) {
         const char* env_trace_folder_name = std::getenv("YOSEMITE_APP_NAME");
         if (env_trace_folder_name != nullptr) {
-            fprintf(stdout, "YOSEMITE_APP_NAME: %s\n", env_trace_folder_name);
+            // fprintf(stdout, "YOSEMITE_APP_NAME: %s\n", env_trace_folder_name);
             trace_folder_name = "traces_" + std::string(env_trace_folder_name)
                                 + "_" + get_current_date_n_time();
         } else {
