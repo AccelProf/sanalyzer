@@ -5,7 +5,7 @@
 
 #include <cstdint>
 #include <map>
-#include <list>
+#include <vector>
 #include <fstream>
 #include <memory>
 #include <cassert>
@@ -13,28 +13,6 @@
 
 
 using namespace yosemite;
-
-
-typedef struct TraceEntry
-{
-    uint64_t addr;
-    uint64_t page_no;
-    uint32_t size;
-    uint64_t timestampe;
-    uint32_t access_type; // 0: read 1: write
-    MemoryAccessType mem_type;
-
-    TraceEntry() = default;
-
-    ~TraceEntry() = default;
-
-    TraceEntry(uint64_t addr, uint32_t size, uint32_t access_type)
-        : addr(addr), size(size), access_type(access_type) {
-            timestampe = 0;
-            page_no = addr >> 12;
-    }
-}TraceEntry_t;
-
 
 static Timer_t _timer;
 
@@ -49,29 +27,7 @@ std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
 std::map<uint64_t, std::shared_ptr<TenAlloc>> tensor_events;
 std::map<DevPtr, std::shared_ptr<TenAlloc>> active_tensors;
 
-std::list<TraceEntry> _traces;
-
-
-static std::string GetMemoryRWString(uint32_t flags)
-{
-    auto SANITIZER_MEMORY_DEVICE_FLAG_READ = 0x1;
-    auto SANITIZER_MEMORY_DEVICE_FLAG_WRITE = 0x2;
-    const bool isWrite = !!(flags & SANITIZER_MEMORY_DEVICE_FLAG_WRITE);
-    const bool isRead = !!(flags & SANITIZER_MEMORY_DEVICE_FLAG_READ);
-
-    if (isWrite && isRead) {return "Atomic";}
-    else if (isRead) {return "Read";}
-    else if (isWrite) {return "Write";}
-    else {return "Unknown";}
-}
-
-
-static std::string GetMemoryTypeString(MemoryAccessType type)
-{
-    if (type == MemoryAccessType::Local) {return "local";}
-    else if (type == MemoryAccessType::Shared) {return "shared";}
-    else {return "global";}
-}
+std::vector<MemoryAccess> _traces;
 
 
 MemTrace::MemTrace() : Tool(MEM_TRACE) {
@@ -90,7 +46,7 @@ void MemTrace::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
 
     kernel->kernel_id = kernel_id++;
     kernel_events.emplace(_timer.get(), kernel);
-    _traces = std::list<TraceEntry>();
+    _traces.clear();
 
     _timer.increment(true);
 }
@@ -104,25 +60,32 @@ void MemTrace::kernel_trace_flush(std::shared_ptr<KernelLauch_t> kernel) {
     std::ofstream out(filename);
 
     for (auto& trace : _traces) {
-        out << trace.page_no << " "
-            << trace.addr << " "
-            << trace.size << " "
-            << trace.timestampe << " "
-            << trace.access_type << " "
-            << (uint32_t) trace.mem_type
-            << std::endl;
+        for (int i = 0; i < GPU_WARP_SIZE; i++) {
+            if (trace.addresses[i] != 0) {
+                _timer.increment(false);
+                out << (trace.addresses[i] >> 12) << " "
+                    << trace.addresses[i] << " "
+                    << trace.accessSize << " "
+                    << _timer.get() << " "
+                    << trace.flags << " "
+                    << trace.warpId << std::endl;
+            }
+        }
     }
 
+    out << std::endl;
     for (auto evt : active_memories) {
         out << "ALLOCATION: " << " " << evt.second->addr
             << " " << evt.second->size << std::endl;
     }
 
+    out << std::endl;
     for (auto evt : active_tensors) {
         out << "TENSOR: " << " " << evt.second->addr
             << " " << evt.second->size << std::endl;
     }
 
+    out << std::endl;
     out << "KERNEL: " << kernel->timestamp << " " << kernel->end_time << std::endl;
 
     out.close();
@@ -190,19 +153,8 @@ void MemTrace::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
 void MemTrace::gpu_data_analysis(void* data, uint64_t size) {
     MemoryAccess* accesses_buffer = (MemoryAccess*)data;
     for (int i = 0; i < size; i++) {
-        auto& accesses = accesses_buffer[i];
-        for (int j = 0; j < GPU_WARP_SIZE; j++) {
-            if (accesses.addresses[j] != 0) {
-                TraceEntry entry;
-                entry.addr = accesses.addresses[j];
-                entry.page_no = entry.addr >> 12;
-                entry.size = accesses.accessSize;
-                entry.timestampe = _timer.get();
-                entry.access_type = accesses.flags;
-                entry.mem_type = accesses.type;
-                _traces.push_back(entry);
-            }
-        }
+        MemoryAccess trace = accesses_buffer[i];
+        _traces.push_back(trace);
     }
 
 }
