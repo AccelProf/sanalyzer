@@ -108,21 +108,15 @@ void CodeCheck::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
 
 
 void CodeCheck::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
-    
-    std::cout << "Memory copy detected" << std::endl;
-    std::cout << mem->src_addr << " " << mem->dst_addr << " " << mem->size << std::endl;
-    std::cout << "cudaMemcpy is async: " << mem->is_async << std::endl;
-    std::cout << "Direction: " << mem->direction << std::endl;
-
     auto backtraces = get_backtrace();
     auto py_frames = get_pyframes();
     auto bt_str = vector2str(backtraces);
     auto pf_str = vector2str(py_frames);
 
+    std::cout << "Backtrace hash: " << sha256(bt_str) << std::endl;
     std::cout << bt_str << std::endl;
+    std::cout << "Python frame hash: " << sha256(pf_str) << std::endl;
     std::cout << pf_str << std::endl;
-    std::cout << "Backtrace: " << sha256(bt_str) << std::endl;
-    std::cout << "Python frames: " << sha256(pf_str) << std::endl;
 
     _timer.increment(true);
 }
@@ -130,32 +124,17 @@ void CodeCheck::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
 
 void CodeCheck::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
 
-    std::cout << "Memory set detected" << std::endl;
-    std::cout << mem->addr << " " << mem->size << " " << mem->value << std::endl;
-    std::cout << "cudaMemset is async: " << mem->is_async << std::endl;
-    std::cout << "Set value: " << mem->value << std::endl;
-
-    // auto backtraces = get_backtrace();
-    // auto py_frames = get_pyframes();
-    // auto bt_str = vector2str(backtraces);
-    // auto pf_str = vector2str(py_frames);
-
-    // std::cout << bt_str << std::endl;
-    // std::cout << pf_str << std::endl;
-    // std::cout << "Backtrace: " << sha256(bt_str) << std::endl;
-    // std::cout << "Python frames: " << sha256(pf_str) << std::endl;
-
     _timer.increment(true);
 }
 
 
 void CodeCheck::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
-    std::cout << "[Tensor malloc] " << ten->addr << " " << ten->size << std::endl;
+    // std::cout << "[Tensor malloc] " << ten->addr << " " << ten->size << std::endl;
 }
 
 
 void CodeCheck::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
-    std::cout << "[Tensor free] " << ten->addr << " " << ten->size << std::endl;
+    // std::cout << "[Tensor free] " << ten->addr << " " << ten->size << std::endl;
 }
 
 

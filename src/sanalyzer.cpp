@@ -4,6 +4,7 @@
 #include "tools/mem_trace.h"
 #include "tools/tool.h"
 #include "utils/event.h"
+#include "utils/helper.h"
 
 
 #include <memory>
@@ -54,6 +55,14 @@ YosemiteResult_t yosemite_flush() {
     }
     return YOSEMITE_SUCCESS;
 }
+
+
+YosemiteResult_t yosemite_torch_prof_enable() {
+    fprintf(stdout, "Enabling torch profiler.\n");
+    fflush(stdout);
+    return YOSEMITE_SUCCESS;
+}
+
 
 /****************************************************************************************
  ********************************** Interface functions *********************************
@@ -125,14 +134,6 @@ YosemiteResult_t yosemite_gpu_data_analysis(void* data, uint64_t size) {
 }
 
 
-YosemiteResult_t yosemite_torch_prof_enable() {
-    fprintf(stdout, "Enabling torch profiler.\n");
-    fprintf(stdout, "================================================================================\n");
-    fflush(stdout);
-    return YOSEMITE_SUCCESS;
-}
-
-
 YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
     AnalysisTool_t tool;
     YosemiteResult_t res = yosemite_tool_enable(tool);
@@ -149,6 +150,16 @@ YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
         options.patch_name = GPU_PATCH_MEM_TRACE;
         options.patch_file = "gpu_patch_mem_trace.fatbin";
     }
+
+    // enable torch profiler?
+    const char* torch_prof = std::getenv("TORCH_PROFILE_ENABLED");
+    if (torch_prof && std::string(torch_prof) == "1") {
+        yosemite_torch_prof_enable();
+    }
+
+    fprintf(stdout, "Start at %s\n", get_current_date_n_time().c_str());
+    fprintf(stdout, "================================================================================\n");
+    fflush(stdout);
 
     return YOSEMITE_SUCCESS;
 }

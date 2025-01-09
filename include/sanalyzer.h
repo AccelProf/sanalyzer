@@ -44,8 +44,6 @@ YosemiteResult_t yosemite_kernel_end_callback(std::string kernel_name);
 
 YosemiteResult_t yosemite_gpu_data_analysis(void* data, uint64_t size);
 
-YosemiteResult_t yosemite_torch_prof_enable();
-
 YosemiteResult_t yosemite_init(SanitizerOptions_t& options);
 
 YosemiteResult_t yosemite_terminate();
