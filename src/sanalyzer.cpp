@@ -4,7 +4,6 @@
 #include "tools/mem_trace.h"
 #include "tools/tool.h"
 #include "utils/event.h"
-#include "utils/helper.h"
 
 
 #include <memory>
@@ -154,10 +153,10 @@ YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
     // enable torch profiler?
     const char* torch_prof = std::getenv("TORCH_PROFILE_ENABLED");
     if (torch_prof && std::string(torch_prof) == "1") {
+        options.torch_prof_enabled = true;
         yosemite_torch_prof_enable();
     }
 
-    fprintf(stdout, "Start at %s\n", get_current_date_n_time().c_str());
     fprintf(stdout, "================================================================================\n");
     fflush(stdout);
 
