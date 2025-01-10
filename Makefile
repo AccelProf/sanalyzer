@@ -3,13 +3,13 @@ CONFIGS := Makefile.config
 
 include $(CONFIGS)
 
-OBJ_DIR := obj/
-SRC_DIR := src/
-INC_DIR := include/
-LIB_DIR := lib/
+OBJ_DIR := obj
+SRC_DIR := src
+INC_DIR := include
+LIB_DIR := lib
 PREFIX := sanalyzer
 
-LIB := $(LIB_DIR)lib$(PROJECT).so
+LIB := $(LIB_DIR)/lib$(PROJECT).so
 CUR_DIR := $(shell pwd)
 
 CXX ?=
@@ -23,12 +23,12 @@ else
 	CFLAGS += -O3
 endif
 
-SRCS := $(notdir $(wildcard $(SRC_DIR)*.cpp $(SRC_DIR)*/*.cpp))
-OBJS := $(addprefix $(OBJ_DIR), $(patsubst %.cpp, %.o, $(SRCS)))
+SRCS := $(notdir $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/*/*.cpp))
+OBJS := $(addprefix $(OBJ_DIR)/, $(patsubst %.cpp, %.o, $(SRCS)))
 
-all: dirs lib
+all: dirs libs
 dirs: $(OBJ_DIR) $(LIB_DIR)
-lib: $(LIB)
+libs: $(LIB)
 
 CXX_BACKTRACE_DIR := cxx_backtrace/cxx_backtrace/
 INCLUDES ?= -I$(CXX_BACKTRACE_DIR)/include
@@ -50,11 +50,11 @@ $(LIB_DIR):
 $(LIB): $(OBJS)
 	$(CXX) $(LDFLAGS) -fPIC -shared -o $@ $^ $(LINK_LIBS)
 
-$(OBJ_DIR)%.o: $(SRC_DIR)%.cpp
-	$(CXX) -I$(INC_DIR) $(INCLUDES) -I$(GPU_PATCH_HEADER_DIR) $(CFLAGS) -fPIC -c $< -o $@
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
+	$(CXX) $(CFLAGS) -I$(INC_DIR) $(INCLUDES) -I$(GPU_PATCH_HEADER_DIR) -fPIC -c $< -o $@
 
-$(OBJ_DIR)%.o: $(SRC_DIR)/*/%.cpp
-	$(CXX) -I$(INC_DIR) $(INCLUDES) -I$(GPU_PATCH_HEADER_DIR) $(CFLAGS) -fPIC -c $< -o $@
+$(OBJ_DIR)/%.o: $(SRC_DIR)/*/%.cpp
+	$(CXX) $(CFLAGS) -I$(INC_DIR) $(INCLUDES) -I$(GPU_PATCH_HEADER_DIR) -fPIC -c $< -o $@
 
 .PHONY: clean
 clean:
