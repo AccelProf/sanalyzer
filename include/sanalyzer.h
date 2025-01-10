@@ -24,6 +24,7 @@ typedef struct SanitizerOptions {
     SanitizerPatchName_t patch_name;
     std::string patch_file;
     volatile bool skip_sanitizer_callback = false;
+    bool torch_prof_enabled = false;
 
     SanitizerOptions() = default;
     ~SanitizerOptions() = default;
