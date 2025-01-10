@@ -10,17 +10,32 @@ LIB_DIR := lib
 PREFIX := sanalyzer
 
 LIB := $(LIB_DIR)/lib$(PROJECT).so
-CUR_DIR := $(shell pwd)
 
-CXX ?=
+CXX ?= g++
 
-CFLAGS := -std=c++17
+CXX_FLAGS ?=
+INCLUDES ?=
 LDFLAGS ?=
+LINK_LIBS ?=
+
+INCLUDES += -I$(INC_DIR)
+INCLUDES += -I$(SANITIZER_TOOL_DIR)/gpu_src/include
+
+INCLUDES += -I$(CXX_BACKTRACE_DIR)/include
+LDFLAGS += -L$(CXX_BACKTRACE_DIR)/lib -Wl,-rpath=$(CXX_BACKTRACE_DIR)/lib
+LINK_LIBS += -lcxx_backtrace
+
+INCLUDES += -I$(PY_FRAME_DIR)/include
+LDFLAGS += -L$(PY_FRAME_DIR)/lib -Wl,-rpath=$(PY_FRAME_DIR)/lib
+LINK_LIBS += -lpy_frame
+
+
+CXX_FLAGS += -std=c++17
 
 ifeq ($(DEBUG), 1)
-	CFLAGS += -g -O0
+	CXX_FLAGS += -g -O0
 else
-	CFLAGS += -O3
+	CXX_FLAGS += -O3
 endif
 
 SRCS := $(notdir $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/*/*.cpp))
@@ -29,17 +44,6 @@ OBJS := $(addprefix $(OBJ_DIR)/, $(patsubst %.cpp, %.o, $(SRCS)))
 all: dirs libs
 dirs: $(OBJ_DIR) $(LIB_DIR)
 libs: $(LIB)
-
-CXX_BACKTRACE_DIR := cxx_backtrace/cxx_backtrace/
-INCLUDES ?= -I$(CXX_BACKTRACE_DIR)/include
-LDFLAGS += -L$(CXX_BACKTRACE_DIR)/lib -Wl,-rpath=$(CXX_BACKTRACE_DIR)/lib
-LINK_LIBS ?= -lcxx_backtrace
-
-PY_FRAME_DIR := py_frame/py_frame/
-INCLUDES += -I$(PY_FRAME_DIR)/include
-LDFLAGS += -L$(PY_FRAME_DIR)/lib -Wl,-rpath=$(PY_FRAME_DIR)/lib
-LINK_LIBS += -lpy_frame
-
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
@@ -51,10 +55,10 @@ $(LIB): $(OBJS)
 	$(CXX) $(LDFLAGS) -fPIC -shared -o $@ $^ $(LINK_LIBS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
-	$(CXX) $(CFLAGS) -I$(INC_DIR) $(INCLUDES) -I$(GPU_PATCH_HEADER_DIR) -fPIC -c $< -o $@
+	$(CXX) $(CXX_FLAGS) $(INCLUDES) -fPIC -c $< -o $@
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/*/%.cpp
-	$(CXX) $(CFLAGS) -I$(INC_DIR) $(INCLUDES) -I$(GPU_PATCH_HEADER_DIR) -fPIC -c $< -o $@
+	$(CXX) $(CXX_FLAGS) $(INCLUDES) -fPIC -c $< -o $@
 
 .PHONY: clean
 clean:
