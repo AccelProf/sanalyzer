@@ -4,7 +4,7 @@
 #include "utils/hash.h"
 #include "gpu_patch.h"
 #include "cxx_backtrace.h"
-#include "python_frame.h"
+#include "py_frame.h"
 
 #include <algorithm>
 #include <cassert>
@@ -118,15 +118,15 @@ struct CpyStats {
 std::map<MemcpyDirection_t, CpyStats> cpy_stats;
 
 void CodeCheck::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
-    auto backtraces = get_backtrace();
-    auto py_frames = get_pyframes();
-    auto bt_str = vector2str(backtraces);
-    auto pf_str = vector2str(py_frames);
+    // auto backtraces = get_backtrace();
+    // auto py_frames = get_pyframes();
+    // auto bt_str = vector2str(backtraces);
+    // auto pf_str = vector2str(py_frames);
 
-    std::cout << "Backtrace hash: " << sha256(bt_str) << std::endl;
-    std::cout << bt_str << std::endl;
-    std::cout << "Python frame hash: " << sha256(pf_str) << std::endl;
-    std::cout << pf_str << std::endl;
+    // std::cout << "Backtrace hash: " << sha256(bt_str) << std::endl;
+    // std::cout << bt_str << std::endl;
+    // std::cout << "Python frame hash: " << sha256(pf_str) << std::endl;
+    // std::cout << pf_str << std::endl;
 
     MemcpyDirection_t direction = (MemcpyDirection_t)mem->direction;
     if (cpy_stats.find(direction) == cpy_stats.end()) {
