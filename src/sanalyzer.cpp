@@ -77,12 +77,12 @@ YosemiteResult_t yosemite_alloc_callback(uint64_t ptr, uint64_t size, int type) 
 }
 
 
-YosemiteResult_t yosemite_free_callback(uint64_t ptr) {
+YosemiteResult_t yosemite_free_callback(uint64_t ptr, uint64_t size) {
     if (ptr == 0) {
         return YOSEMITE_CUDA_MEMFREE_ZERO;
     }
     for (auto &tool : _tools) {
-        auto mem_free = std::make_shared<MemFree_t>(ptr);
+        auto mem_free = std::make_shared<MemFree_t>(ptr, size);
         tool.second->evt_callback(mem_free);
     }
     return YOSEMITE_SUCCESS;

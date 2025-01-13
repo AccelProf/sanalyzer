@@ -121,8 +121,8 @@ typedef struct MemFree : public Event {
         evt_type = EventType_MEM_FREE;
     }
 
-    MemFree(DevPtr addr)
-        : addr(addr) {
+    MemFree(DevPtr addr, uint64_t size)
+        : addr(addr), size(size) {
             evt_type = EventType_MEM_FREE;
         }
 
