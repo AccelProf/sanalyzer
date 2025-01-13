@@ -15,13 +15,17 @@
 #include <memory>
 #include <iostream>
 
-
 using namespace yosemite;
 
-
+typedef enum {
+    MEMCPY_UNKNOWN = 0,
+    MEMCPY_H2H = 1,
+    MEMCPY_H2D = 2,
+    MEMCPY_D2H = 3,
+    MEMCPY_D2D = 4,
+} MemcpyDirection_t;
 
 static Timer_t _timer;
-
 
 static std::map<uint64_t, std::shared_ptr<KernelLauch_t>> kernel_events;
 static std::map<uint64_t, std::shared_ptr<MemAlloc_t>> alloc_events;
@@ -107,6 +111,12 @@ void CodeCheck::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
 }
 
 
+struct CpyStats {
+    uint64_t count;
+    uint64_t size;
+};
+std::map<MemcpyDirection_t, CpyStats> cpy_stats;
+
 void CodeCheck::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
     auto backtraces = get_backtrace();
     auto py_frames = get_pyframes();
@@ -117,6 +127,13 @@ void CodeCheck::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
     std::cout << bt_str << std::endl;
     std::cout << "Python frame hash: " << sha256(pf_str) << std::endl;
     std::cout << pf_str << std::endl;
+
+    MemcpyDirection_t direction = (MemcpyDirection_t)mem->direction;
+    if (cpy_stats.find(direction) == cpy_stats.end()) {
+        cpy_stats[direction] = CpyStats{0, 0};
+    }
+    cpy_stats[direction].count++;
+    cpy_stats[direction].size += mem->size;
 
     _timer.increment(true);
 }
@@ -149,5 +166,13 @@ void CodeCheck::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
 
 
 void CodeCheck::flush() {
-    
+    std::cout << "--------------------------------------------------------------------------------" << std::endl;
+    for (auto& it : cpy_stats) {
+        auto direction = it.first == MEMCPY_H2H ? "Host->Host" : it.first == MEMCPY_H2D ? "Host->Device"
+                        : it.first == MEMCPY_D2H ? "Device->Host" : it.first == MEMCPY_D2D ? "Device->Device" : "UNKNOWN";
+        std::cout << "Memcpy direction: " << direction
+                  << ", count: " << it.second.count << ", size: " << it.second.size
+                  << " (" << format_size(it.second.size) << ")" << std::endl;
+    }
+    std::cout << "--------------------------------------------------------------------------------" << std::endl;
 }
