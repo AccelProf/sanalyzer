@@ -16,7 +16,6 @@ using namespace yosemite;
 
 static Timer_t _timer;
 
-static bool first_kernel_finished = false;
 std::string trace_folder_name;
 uint32_t kernel_id = 0;
 
@@ -36,6 +35,17 @@ MemTrace::MemTrace() : Tool(MEM_TRACE) {
         fprintf(stdout, "Enabling torch profiler in MemTrace.\n");
         _torch_enabled = true;
     }
+
+    const char* env_trace_folder_name = std::getenv("YOSEMITE_APP_NAME");
+    if (env_trace_folder_name != nullptr) {
+        // fprintf(stdout, "YOSEMITE_APP_NAME: %s\n", env_trace_folder_name);
+        trace_folder_name = "traces_" + std::string(env_trace_folder_name)
+                            + "_" + get_current_date_n_time();
+    } else {
+        fprintf(stdout, "No trace_folder_name specified.\n");
+        trace_folder_name = "traces_" + get_current_date_n_time();
+    }
+    check_folder_existance(trace_folder_name);
 }
 
 
@@ -93,20 +103,6 @@ void MemTrace::kernel_trace_flush(std::shared_ptr<KernelLauch_t> kernel) {
 
 
 void MemTrace::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
-    if (!first_kernel_finished) {
-        const char* env_trace_folder_name = std::getenv("YOSEMITE_APP_NAME");
-        if (env_trace_folder_name != nullptr) {
-            // fprintf(stdout, "YOSEMITE_APP_NAME: %s\n", env_trace_folder_name);
-            trace_folder_name = "traces_" + std::string(env_trace_folder_name)
-                                + "_" + get_current_date_n_time();
-        } else {
-            fprintf(stdout, "No trace_folder_name specified.\n");
-            trace_folder_name = "traces_" + get_current_date_n_time();
-        }
-        check_folder_existance(trace_folder_name);
-        first_kernel_finished = true;
-    }
-
     auto evt = std::prev(kernel_events.end())->second;
     evt->end_time = _timer.get();
 
