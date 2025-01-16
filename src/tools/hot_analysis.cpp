@@ -1,3 +1,7 @@
+/**
+ * Hot memory analysis.
+ * For PyTorch models.
+ */
 #include "tools/hot_analysis.h"
 #include <cstring>
 #include "utils/helper.h"
@@ -7,6 +11,7 @@
 #include <vector>
 #include <cassert>
 #include <cstring>
+#include <fstream>
 
 
 using namespace yosemite;
@@ -14,9 +19,22 @@ using namespace yosemite;
 constexpr uint32_t RANGE_GRANULARITY = 2 * 1024 * 1024;
 
 static std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
+static std::map<DevPtr, std::shared_ptr<TenAlloc>> active_tensors;
+static std::map<MemoryRange, uint32_t> range_access_counts;
+
+static std::string output_directory;
+static uint32_t global_kernel_id = 0;
 
 
 HotAnalysis::HotAnalysis() : Tool(HOT_ANALYSIS) {
+    const char* env_app_name = std::getenv("YOSEMITE_APP_NAME");
+    if (env_app_name != nullptr) {
+        output_directory = "hotness_" + std::string(env_app_name)
+                            + "_" + get_current_date_n_time();
+    } else {
+        output_directory = "hotness_" + get_current_date_n_time();
+    }
+    check_folder_existance(output_directory);
 }
 
 HotAnalysis::~HotAnalysis() {
@@ -30,7 +48,7 @@ void HotAnalysis::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
 
 uint64_t device_size = 0;
 void HotAnalysis::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
-    if (mem->alloc_type != 0) {
+    if (mem->alloc_type != 6) {
         return;
     }
 
@@ -38,7 +56,7 @@ void HotAnalysis::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
 }
 
 void HotAnalysis::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
-    if (mem->alloc_type != 0) {
+    if (mem->alloc_type != 6) {
         return;
     }
 
@@ -52,9 +70,11 @@ void HotAnalysis::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
 }
 
 void HotAnalysis::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
+    active_tensors.emplace(ten->addr, ten);
 }
 
 void HotAnalysis::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
+    active_tensors.erase(ten->addr);
 }
 
 void HotAnalysis::evt_callback(EventPtr_t evt) {
@@ -90,10 +110,38 @@ void HotAnalysis::evt_callback(EventPtr_t evt) {
 
 void HotAnalysis::gpu_data_analysis(void* data, uint64_t size) {
     MemoryAccessState* state = (MemoryAccessState*)data;
+
+    std::string filename = output_directory + "/kernel_"
+                            + std::to_string(global_kernel_id++) + ".txt";
+    printf("Dumping traces to %s\n", filename.c_str());
+
+    std::ofstream out(filename);
+
     for (uint32_t i = 0; i < size; ++i) {
         MemoryRange range = state->start_end[i];
-        printf("range: %lu - %lu, count: %lu, size: %lu (%s)\n", range.start, range.end, state->touch[i], range.end - range.start, format_size(range.end - range.start).c_str());
+        out << range.start << " " << range.end << " " << state->touch[i] << std::endl;
+
+        auto it = range_access_counts.find(range);
+        if (it != range_access_counts.end()) {
+            it->second += state->touch[i];
+        } else {
+            range_access_counts.emplace(range, state->touch[i]);
+        }
     }
+    out << std::endl;
+
+    for (auto active_mem : active_memories) {
+        auto mem = active_mem.second;
+        out << mem->addr << " " << mem->size << std::endl;
+    }
+    out << std::endl;
+
+    for (auto active_ten : active_tensors) {
+        auto ten = active_ten.second;
+        out << ten->addr << " " << ten->size << std::endl;
+    }
+
+    out.close();
 }
 
 void HotAnalysis::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
@@ -126,4 +174,14 @@ void HotAnalysis::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
 }
 
 void HotAnalysis::flush() {
+    std::string filename = output_directory + "/all_kernels.txt";
+    printf("Dumping traces to %s\n", filename.c_str());
+
+    std::ofstream out(filename);
+
+    for (auto range : range_access_counts) {
+        out << range.first.start << " " << range.first.end << " " << range.second << std::endl;
+    }
+
+    out.close();
 }

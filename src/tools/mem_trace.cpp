@@ -16,17 +16,17 @@ using namespace yosemite;
 
 static Timer_t _timer;
 
-std::string trace_folder_name;
-uint32_t kernel_id = 0;
+static std::string output_directory;
+static uint32_t kernel_id = 0;
 
-std::map<uint64_t, std::shared_ptr<KernelLauch_t>> kernel_events;
-std::map<uint64_t, std::shared_ptr<MemAlloc_t>> alloc_events;
-std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
+static std::map<uint64_t, std::shared_ptr<KernelLauch_t>> kernel_events;
+static std::map<uint64_t, std::shared_ptr<MemAlloc_t>> alloc_events;
+static std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
 
-std::map<uint64_t, std::shared_ptr<TenAlloc>> tensor_events;
-std::map<DevPtr, std::shared_ptr<TenAlloc>> active_tensors;
+static std::map<uint64_t, std::shared_ptr<TenAlloc>> tensor_events;
+static std::map<DevPtr, std::shared_ptr<TenAlloc>> active_tensors;
 
-std::vector<MemoryAccess> _traces;
+static std::vector<MemoryAccess> _traces;
 
 
 MemTrace::MemTrace() : Tool(MEM_TRACE) {
@@ -36,16 +36,14 @@ MemTrace::MemTrace() : Tool(MEM_TRACE) {
         _torch_enabled = true;
     }
 
-    const char* env_trace_folder_name = std::getenv("YOSEMITE_APP_NAME");
-    if (env_trace_folder_name != nullptr) {
-        // fprintf(stdout, "YOSEMITE_APP_NAME: %s\n", env_trace_folder_name);
-        trace_folder_name = "traces_" + std::string(env_trace_folder_name)
+    const char* env_app_name = std::getenv("YOSEMITE_APP_NAME");
+    if (env_app_name != nullptr) {
+        output_directory = "traces_" + std::string(env_app_name)
                             + "_" + get_current_date_n_time();
     } else {
-        fprintf(stdout, "No trace_folder_name specified.\n");
-        trace_folder_name = "traces_" + get_current_date_n_time();
+        output_directory = "traces_" + get_current_date_n_time();
     }
-    check_folder_existance(trace_folder_name);
+    check_folder_existance(output_directory);
 }
 
 
@@ -63,7 +61,7 @@ void MemTrace::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
 
 
 void MemTrace::kernel_trace_flush(std::shared_ptr<KernelLauch_t> kernel) {
-    std::string filename = trace_folder_name + "/kernel_"
+    std::string filename = output_directory + "/kernel_"
                             + std::to_string(kernel->kernel_id) + ".txt";
     printf("Dumping traces to %s\n", filename.c_str());
 
