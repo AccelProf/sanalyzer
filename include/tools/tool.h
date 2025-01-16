@@ -8,7 +8,7 @@ namespace yosemite {
 
 class Tool {
 public:
-    Tool(AnalysisTool_t tool) {_tool = tool;}
+    Tool(AnalysisTool_t tool) : _tool(tool) {}
 
     virtual ~Tool() = default;
 

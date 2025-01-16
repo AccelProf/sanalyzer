@@ -17,6 +17,7 @@ typedef enum {
     GPU_NO_PATCH = 0,
     GPU_PATCH_APP_METRIC = 1,
     GPU_PATCH_MEM_TRACE = 2,
+    GPU_PATCH_HOT_ANALYSIS = 3,
 } SanitizerPatchName_t;
 
 
@@ -33,7 +34,7 @@ typedef struct SanitizerOptions {
 
 YosemiteResult_t yosemite_alloc_callback(uint64_t ptr, uint64_t size, int type);
 
-YosemiteResult_t yosemite_free_callback(uint64_t ptr, uint64_t size);
+YosemiteResult_t yosemite_free_callback(uint64_t ptr, uint64_t size, int type);
 
 YosemiteResult_t yosemite_memcpy_callback(uint64_t dst, uint64_t src, uint64_t size, bool is_async, uint32_t direction);
 

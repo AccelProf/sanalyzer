@@ -1,10 +1,11 @@
 #include "sanalyzer.h"
+
+#include "tools/tool.h"
+#include "utils/event.h"
 #include "tools/code_check.h"
 #include "tools/app_metric.h"
 #include "tools/mem_trace.h"
-#include "tools/tool.h"
-#include "utils/event.h"
-
+#include "tools/hot_analysis.h"
 
 #include <memory>
 #include <map>
@@ -31,8 +32,10 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
     } else if (std::string(tool_name) == "mem_trace") {
         tool = MEM_TRACE;
         _tools.emplace(MEM_TRACE, std::make_shared<MemTrace>());
-    } else
-    {
+    } else if (std::string(tool_name) == "hot_analysis") {
+        tool = HOT_ANALYSIS;
+        _tools.emplace(HOT_ANALYSIS, std::make_shared<HotAnalysis>());
+    } else {
         fprintf(stdout, "Tool not found.\n");
         return YOSEMITE_NOT_IMPLEMENTED;
     }
@@ -77,12 +80,12 @@ YosemiteResult_t yosemite_alloc_callback(uint64_t ptr, uint64_t size, int type) 
 }
 
 
-YosemiteResult_t yosemite_free_callback(uint64_t ptr, uint64_t size) {
+YosemiteResult_t yosemite_free_callback(uint64_t ptr, uint64_t size, int type) {
     if (ptr == 0) {
         return YOSEMITE_CUDA_MEMFREE_ZERO;
     }
     for (auto &tool : _tools) {
-        auto mem_free = std::make_shared<MemFree_t>(ptr, size);
+        auto mem_free = std::make_shared<MemFree_t>(ptr, size, type);
         tool.second->evt_callback(mem_free);
     }
     return YOSEMITE_SUCCESS;
@@ -148,6 +151,9 @@ YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
     } else if (tool == MEM_TRACE) {
         options.patch_name = GPU_PATCH_MEM_TRACE;
         options.patch_file = "gpu_patch_mem_trace.fatbin";
+    } else if (tool == HOT_ANALYSIS) {
+        options.patch_name = GPU_PATCH_HOT_ANALYSIS;
+        options.patch_file = "gpu_patch_hot_analysis.fatbin";
     }
 
     // enable torch profiler?

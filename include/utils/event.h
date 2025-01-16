@@ -116,13 +116,14 @@ typedef struct MemAlloc : public Event {
 typedef struct MemFree : public Event {
     DevPtr addr;
     uint64_t size;
+    int alloc_type;
 
     MemFree() {
         evt_type = EventType_MEM_FREE;
     }
 
-    MemFree(DevPtr addr, uint64_t size)
-        : addr(addr), size(size) {
+    MemFree(DevPtr addr, uint64_t size, int alloc_type)
+        : addr(addr), size(size), alloc_type(alloc_type) {
             evt_type = EventType_MEM_FREE;
         }
 

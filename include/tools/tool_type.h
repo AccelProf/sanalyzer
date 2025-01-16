@@ -5,7 +5,8 @@ typedef enum {
     CODE_CHECK = 0,
     APP_METRICE = 1,
     MEM_TRACE = 2,
-    TOOL_NUMS = 3
+    HOT_ANALYSIS = 3,
+    TOOL_NUMS = 4
 } AnalysisTool_t;
 
 #endif // TOOL_TYPE_H
