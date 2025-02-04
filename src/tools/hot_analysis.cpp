@@ -46,20 +46,11 @@ void HotAnalysis::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
 void HotAnalysis::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
 }
 
-uint64_t device_size = 0;
 void HotAnalysis::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
-    if (mem->alloc_type != 6) {
-        return;
-    }
-
     active_memories.emplace(mem->addr, mem);
 }
 
 void HotAnalysis::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
-    if (mem->alloc_type != 6) {
-        return;
-    }
-
     active_memories.erase(mem->addr);
 }
 
@@ -117,9 +108,25 @@ void HotAnalysis::gpu_data_analysis(void* data, uint64_t size) {
 
     std::ofstream out(filename);
 
+    auto tensor_iter = active_tensors.begin();
+
     for (uint32_t i = 0; i < size; ++i) {
         MemoryRange range = state->start_end[i];
+
+        if (tensor_iter != active_tensors.end()) {
+            if (tensor_iter->first == range.start) {
+                out << "Tensor start ------------------------------------------" << tensor_iter->first << std::endl;
+            }
+        }
+
         out << range.start << " " << range.end << " " << state->touch[i] << std::endl;
+
+        if (tensor_iter != active_tensors.end()) {
+            if (tensor_iter->first + tensor_iter->second->size == range.end) {
+                out << "Tensor end ------------------------------------------" << tensor_iter->first + tensor_iter->second->size << std::endl;
+                tensor_iter++;
+            }
+        }
 
         auto it = range_access_counts.find(range);
         if (it != range_access_counts.end()) {
@@ -166,6 +173,8 @@ void HotAnalysis::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
             }
         }
     }
+    fprintf(stdout, "size: %lu, limit: %u\n", active_memory_ranges.size(), MAX_NUM_MEMORY_RANGES);
+    fflush(stdout);
     assert(active_memory_ranges.size() <= MAX_NUM_MEMORY_RANGES);
 
     MemoryRange* temp_ranges = active_memory_ranges.data();
