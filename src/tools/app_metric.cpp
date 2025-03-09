@@ -215,7 +215,7 @@ void AppMetrics::flush() {
     }
     out << "Number of allocations: " << _stats.num_allocs << std::endl;
     out << "Number of kernels: " << _stats.num_kernels << std::endl;
-    out << "Maximum memory usage: " << _stats.max_mem_usage
+    out << "Maximum memory usage: " << _stats.tot_mem_accesses
         << "B (" << format_size(_stats.max_mem_usage) << ")" << std::endl;
     out << "------------------------------" << std::endl;
     out << "Maximum objects per kernel: " << _stats.max_objs_per_kernel << std::endl;
@@ -234,5 +234,8 @@ void AppMetrics::flush() {
         << " (" << format_number(_stats.avg_mem_accesses) << ")"  << std::endl;
     out << "Total memory accesses: " << _stats.tot_mem_accesses
         << " (" << format_number(_stats.tot_mem_accesses) << ")"  << std::endl;
+
+    auto avg_access_per_page = (float) _stats.tot_mem_accesses / (_stats.max_mem_usage / 4096.0f);
+    out << "Average accesses per page: " << avg_access_per_page << std::endl;
     out.close();
 }
