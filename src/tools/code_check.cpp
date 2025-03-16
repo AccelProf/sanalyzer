@@ -2,7 +2,7 @@
 #include "utils/helper.h"
 #include "utils/hash.h"
 #include "gpu_patch.h"
-#include "cxx_backtrace.h"
+#include "cpp_trace.h"
 #include "py_frame.h"
 
 #include <algorithm>
@@ -71,7 +71,7 @@ std::string vector2str(std::vector<std::string> &vec, int skip_first = 0, int sk
 }
 
 void CodeCheck::init() {
-    const char* env_name = std::getenv("CU_PROF_HOME");
+    const char* env_name = std::getenv("ACCEL_PROF_HOME");
     std::string lib_path;
     if (env_name) {
         lib_path = std::string(env_name) + "/lib/libcompute_sanitizer.so";

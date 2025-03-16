@@ -21,9 +21,9 @@ LINK_LIBS ?=
 INCLUDES += -I$(INC_DIR)
 INCLUDES += -I$(SANITIZER_TOOL_DIR)/gpu_src/include
 
-INCLUDES += -I$(CXX_BACKTRACE_DIR)/include
-LDFLAGS += -L$(CXX_BACKTRACE_DIR)/lib -Wl,-rpath=$(CXX_BACKTRACE_DIR)/lib
-LINK_LIBS += -lcxx_backtrace
+INCLUDES += -I$(CPP_TRACE_DIR)/include
+LDFLAGS += -L$(CPP_TRACE_DIR)/lib -Wl,-rpath=$(CPP_TRACE_DIR)/lib
+LINK_LIBS += -lcpp_trace
 
 INCLUDES += -I$(PY_FRAME_DIR)/include
 LDFLAGS += -L$(PY_FRAME_DIR)/lib -Wl,-rpath=$(PY_FRAME_DIR)/lib
