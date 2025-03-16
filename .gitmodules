@@ -1,6 +1,6 @@
-[submodule "cxx_backtrace"]
-	path = cxx_backtrace
-	url = git@github.com:CUProf/cxx_backtrace.git
 [submodule "py_frame"]
 	path = py_frame
-	url = git@github.com:CUProf/py_frame.git
+	url = https://github.com/CUProf/py_frame.git
+[submodule "cpp_trace"]
+	path = cpp_trace
+	url = https://github.com/AccelProf/cpp_trace.git
