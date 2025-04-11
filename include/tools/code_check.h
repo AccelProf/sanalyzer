@@ -33,6 +33,10 @@ public:
 
     void ten_free_callback(std::shared_ptr<TenFree_t> ten);
 
+    void op_start_callback(std::shared_ptr<OpStart_t> op);
+
+    void op_end_callback(std::shared_ptr<OpEnd_t> op);
+
     void evt_callback(EventPtr_t evt);
 
     void gpu_data_analysis(void* data, uint64_t size);

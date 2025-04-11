@@ -56,6 +56,10 @@ YosemiteResult_t yosemite_tensor_malloc_callback(uint64_t ptr, int64_t alloc_siz
 YosemiteResult_t yosemite_tensor_free_callback(uint64_t ptr, int64_t alloc_size,
                                 int64_t total_allocated, int64_t total_reserved);
 
+YosemiteResult_t yosemite_operator_start_callback(void* ctx, std::string op_name);
+
+YosemiteResult_t yosemite_operator_end_callback(void* ctx, std::string op_name);
+
 YosemiteResult_t yosemite_query_active_ranges(void* ranges, uint32_t limit, uint32_t* count);
 
 
