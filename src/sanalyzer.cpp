@@ -196,6 +196,24 @@ YosemiteResult_t yosemite_tensor_free_callback(uint64_t ptr, int64_t alloc_size,
 }
 
 
+YosemiteResult_t yosemite_operator_start_callback(void* ctx, std::string op_name) {
+    for (auto &tool : _tools) {
+        auto op_start = std::make_shared<OpStart_t>(op_name, ctx);
+        tool.second->evt_callback(op_start);
+    }
+    return YOSEMITE_SUCCESS;
+}
+
+
+YosemiteResult_t yosemite_operator_end_callback(void* ctx, std::string op_name) {
+    for (auto &tool : _tools) {
+        auto op_end = std::make_shared<OpEnd_t>(op_name, ctx);
+        tool.second->evt_callback(op_end);
+    }
+    return YOSEMITE_SUCCESS;
+}
+
+
 YosemiteResult_t yosemite_query_active_ranges(void* ranges, uint32_t limit, uint32_t* count) {
     for (auto &tool : _tools) {
         tool.second->query_ranges(ranges, limit, count);

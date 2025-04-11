@@ -40,7 +40,9 @@ typedef enum EventType {
     EventType_MEM_SET = 5,
     EventType_TEN_ALLOC = 6,
     EventType_TEN_FREE = 7,
-    EventTypeCount = 8,
+    EventType_OP_START = 8,
+    EventType_OP_END = 9,
+    EventTypeCount = 10,
 }EventType_t;
 
 
@@ -204,6 +206,38 @@ typedef struct TenFree : public Event {
 
     ~TenFree() = default;
 }TenFree_t;
+
+typedef struct OpStart : public Event {
+    std::string op_name;
+    void* ctx;
+
+    OpStart() {
+        evt_type = EventType_OP_START;
+    }
+
+    OpStart(std::string op_name, void* ctx)
+        : op_name(op_name), ctx(ctx) {
+            evt_type = EventType_OP_START;
+        }
+
+    ~OpStart() = default;
+}OpStart_t;
+
+typedef struct OpEnd : public Event {
+    std::string op_name;
+    void* ctx;
+
+    OpEnd() {
+        evt_type = EventType_OP_END;
+    }
+
+    OpEnd(std::string op_name, void* ctx)
+        : op_name(op_name), ctx(ctx) {
+            evt_type = EventType_OP_END;
+        }
+
+    ~OpEnd() = default;
+}OpEnd_t;
 
 }   // yosemite
 

@@ -107,6 +107,12 @@ void CodeCheck::evt_callback(EventPtr_t evt) {
         case EventType_TEN_FREE:
             ten_free_callback(std::dynamic_pointer_cast<TenFree_t>(evt));
             break;
+        case EventType_OP_START:
+            op_start_callback(std::dynamic_pointer_cast<OpStart_t>(evt));
+            break;
+        case EventType_OP_END:
+            op_end_callback(std::dynamic_pointer_cast<OpEnd_t>(evt));
+            break;
         default:
             break;
     }
@@ -185,6 +191,19 @@ void CodeCheck::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
     _timer.increment(true);
 }
 
+
+void CodeCheck::op_start_callback(std::shared_ptr<OpStart_t> op) {
+    fprintf(stdout, "Op start: %s, ctx: %p\n", op->op_name.c_str(), op->ctx);
+
+    _timer.increment(true);
+}
+
+
+void CodeCheck::op_end_callback(std::shared_ptr<OpEnd_t> op) {
+    fprintf(stdout, "Op end: %s, ctx: %p\n", op->op_name.c_str(), op->ctx);
+
+    _timer.increment(true);
+}
 
 void CodeCheck::gpu_data_analysis(void* data, uint64_t size) {
 
