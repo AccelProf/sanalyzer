@@ -1,4 +1,4 @@
-#include "tools/code_check.h"
+#include "tools/uvm_advisor.h"
 #include "utils/helper.h"
 #include "utils/hash.h"
 #include "gpu_patch.h"
@@ -14,7 +14,9 @@
 #include <memory>
 #include <iostream>
 
+
 using namespace yosemite;
+
 
 typedef enum {
     MEMCPY_UNKNOWN = 0,
@@ -70,7 +72,7 @@ inline std::string vector2str(std::vector<std::string> &vec, int skip_first = 0,
     return str;
 }
 
-void CodeCheck::init() {
+void UVMAdvisor::init() {
     const char* env_name = std::getenv("ACCEL_PROF_HOME");
     std::string lib_path;
     if (env_name) {
@@ -81,7 +83,7 @@ void CodeCheck::init() {
 }
 
 
-void CodeCheck::evt_callback(EventPtr_t evt) {
+void UVMAdvisor::evt_callback(EventPtr_t evt) {
     switch (evt->evt_type) {
         case EventType_KERNEL_LAUNCH:
             kernel_start_callback(std::dynamic_pointer_cast<KernelLauch_t>(evt));
@@ -119,17 +121,17 @@ void CodeCheck::evt_callback(EventPtr_t evt) {
 }
 
 
-void CodeCheck::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
+void UVMAdvisor::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
     kernel_count++;
     _timer.increment(true);
 }
 
 
-void CodeCheck::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
+void UVMAdvisor::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
 }
 
 
-void CodeCheck::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
+void UVMAdvisor::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
     mem_stats.alloc_count++;
     mem_stats.alloc_size += mem->size;
 
@@ -137,7 +139,7 @@ void CodeCheck::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
 }
 
 
-void CodeCheck::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
+void UVMAdvisor::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
     mem_stats.free_count++;
     mem_stats.free_size += mem->size;
 
@@ -146,7 +148,7 @@ void CodeCheck::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
 
 
 
-void CodeCheck::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
+void UVMAdvisor::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
     // auto backtraces = get_backtrace();
     // auto py_frames = get_pyframes();
     // auto bt_str = vector2str(backtraces);
@@ -168,7 +170,7 @@ void CodeCheck::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
 }
 
 
-void CodeCheck::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
+void UVMAdvisor::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
     set_stats.count++;
     set_stats.size += mem->size;
 
@@ -176,7 +178,7 @@ void CodeCheck::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
 }
 
 
-void CodeCheck::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
+void UVMAdvisor::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
     ten_stats.alloc_count++;
     ten_stats.alloc_size += ten->size;
 
@@ -184,7 +186,7 @@ void CodeCheck::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
 }
 
 
-void CodeCheck::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
+void UVMAdvisor::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
     ten_stats.free_count++;
     ten_stats.free_size += -ten->size;
 
@@ -192,30 +194,30 @@ void CodeCheck::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
 }
 
 
-void CodeCheck::op_start_callback(std::shared_ptr<OpStart_t> op) {
+void UVMAdvisor::op_start_callback(std::shared_ptr<OpStart_t> op) {
     fprintf(stdout, "Op start: %s, ctx: %p\n", op->op_name.c_str(), op->ctx);
 
     _timer.increment(true);
 }
 
 
-void CodeCheck::op_end_callback(std::shared_ptr<OpEnd_t> op) {
+void UVMAdvisor::op_end_callback(std::shared_ptr<OpEnd_t> op) {
     fprintf(stdout, "Op end: %s, ctx: %p\n", op->op_name.c_str(), op->ctx);
 
     _timer.increment(true);
 }
 
-void CodeCheck::gpu_data_analysis(void* data, uint64_t size) {
+void UVMAdvisor::gpu_data_analysis(void* data, uint64_t size) {
 
 }
 
 
-void CodeCheck::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
+void UVMAdvisor::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
 
 }
 
 
-void CodeCheck::flush() {
+void UVMAdvisor::flush() {
     fprintf(stdout, "--------------------------------------------------------------------------------\n");
     fprintf(stdout, "%-12s count: %-10lu\n", "[Kernel]", kernel_count);
     fprintf(stdout, "%-12s count: %-10lu, size: %lu (%s)\n", 

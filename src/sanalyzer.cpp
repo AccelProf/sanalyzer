@@ -6,7 +6,7 @@
 #include "tools/app_metric.h"
 #include "tools/mem_trace.h"
 #include "tools/hot_analysis.h"
-
+#include "tools/uvm_advisor.h"
 #include <memory>
 #include <map>
 #include <iostream>
@@ -35,6 +35,9 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
     } else if (std::string(tool_name) == "hot_analysis") {
         tool = HOT_ANALYSIS;
         _tools.emplace(HOT_ANALYSIS, std::make_shared<HotAnalysis>());
+    } else if (std::string(tool_name) == "uvm_advisor") {
+        tool = UVM_ADVISOR;
+        _tools.emplace(UVM_ADVISOR, std::make_shared<UVMAdvisor>());
     } else {
         fprintf(stdout, "Tool not found.\n");
         return YOSEMITE_NOT_IMPLEMENTED;
@@ -154,6 +157,8 @@ YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
     } else if (tool == HOT_ANALYSIS) {
         options.patch_name = GPU_PATCH_HOT_ANALYSIS;
         options.patch_file = "gpu_patch_hot_analysis.fatbin";
+    } else if (tool == UVM_ADVISOR) {
+        options.patch_name = GPU_NO_PATCH;
     }
 
     // enable torch profiler?
