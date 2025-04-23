@@ -8,54 +8,12 @@
 #include <algorithm>
 #include <cassert>
 #include <fstream>
-#include <map>
 #include <vector>
 #include <string>
 #include <memory>
 #include <iostream>
 
 using namespace yosemite;
-
-typedef enum {
-    MEMCPY_UNKNOWN = 0,
-    MEMCPY_H2H = 1,
-    MEMCPY_H2D = 2,
-    MEMCPY_D2H = 3,
-    MEMCPY_D2D = 4,
-} MemcpyDirection_t;
-
-static Timer_t _timer;
-
-struct CpyStats {
-    uint64_t count = 0;
-    uint64_t size = 0;
-};
-
-struct SetStats {
-    uint64_t count = 0;
-    uint64_t size = 0;
-};
-
-struct MemStats {
-    uint64_t alloc_count = 0;
-    uint64_t alloc_size = 0;
-    uint64_t free_count = 0;
-    uint64_t free_size = 0;
-};
-
-struct TenStats {
-    uint64_t alloc_count = 0;
-    uint64_t alloc_size = 0;
-    uint64_t free_count = 0;
-    uint64_t free_size = 0;
-};
-
-
-static std::map<MemcpyDirection_t, CpyStats> cpy_stats;
-static SetStats set_stats;
-static MemStats mem_stats;
-static TenStats ten_stats;
-static uint64_t kernel_count = 0;
 
 
 inline std::string vector2str(std::vector<std::string> &vec, int skip_first = 0, int skip_last = 0) {
