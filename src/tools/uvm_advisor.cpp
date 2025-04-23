@@ -8,15 +8,14 @@
 #include <algorithm>
 #include <cassert>
 #include <fstream>
-#include <map>
 #include <vector>
 #include <string>
+#include <stack>
 #include <memory>
 #include <iostream>
 
 
 using namespace yosemite;
-
 
 typedef enum {
     MEMCPY_UNKNOWN = 0,
@@ -52,12 +51,20 @@ struct TenStats {
     uint64_t free_size = 0;
 };
 
+struct OpStats {
+    uint64_t count = 0;
+    uint64_t group_count = 0;
+    uint64_t pending_kernels = 0;
+};
+
 
 static std::map<MemcpyDirection_t, CpyStats> cpy_stats;
 static SetStats set_stats;
 static MemStats mem_stats;
 static TenStats ten_stats;
 static uint64_t kernel_count = 0;
+static std::stack<std::string> op_stack;
+static OpStats op_stats;
 
 
 inline std::string vector2str(std::vector<std::string> &vec, int skip_first = 0, int skip_last = 0) {
@@ -70,6 +77,19 @@ inline std::string vector2str(std::vector<std::string> &vec, int skip_first = 0,
         str += vec[i] + "\n";
     }
     return str;
+}
+
+
+UVMAdvisor::UVMAdvisor() : Tool(UVM_ADVISOR) {
+    init();
+
+    // out_fp = fopen("uvm_advisor.txt", "w");
+    out_fp = stdout;
+}
+
+
+UVMAdvisor::~UVMAdvisor() {
+    // fclose(out_fp);
 }
 
 void UVMAdvisor::init() {
@@ -123,6 +143,9 @@ void UVMAdvisor::evt_callback(EventPtr_t evt) {
 
 void UVMAdvisor::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
     kernel_count++;
+    fprintf(out_fp, "[Kernel] id: %lu, name: %s\n", kernel_count, kernel->kernel_name.c_str());
+    fflush(out_fp);
+    op_stats.pending_kernels++;
     _timer.increment(true);
 }
 
@@ -134,6 +157,8 @@ void UVMAdvisor::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
 void UVMAdvisor::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
     mem_stats.alloc_count++;
     mem_stats.alloc_size += mem->size;
+    alloc_events.emplace(_timer.get(), mem);
+    active_memories.emplace(mem->addr, mem);
 
     _timer.increment(true);
 }
@@ -142,6 +167,10 @@ void UVMAdvisor::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
 void UVMAdvisor::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
     mem_stats.free_count++;
     mem_stats.free_size += mem->size;
+
+    auto it = active_memories.find(mem->addr);
+    assert(it != active_memories.end());
+    active_memories.erase(it);
 
     _timer.increment(true);
 }
@@ -182,6 +211,9 @@ void UVMAdvisor::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
     ten_stats.alloc_count++;
     ten_stats.alloc_size += ten->size;
 
+    tenalloc_events.emplace(_timer.get(), ten);
+    active_tensors.emplace(ten->addr, ten);
+
     _timer.increment(true);
 }
 
@@ -190,41 +222,104 @@ void UVMAdvisor::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
     ten_stats.free_count++;
     ten_stats.free_size += -ten->size;
 
+    auto it = active_tensors.find(ten->addr);
+    assert(it != active_tensors.end());
+    active_tensors.erase(it);
+
     _timer.increment(true);
 }
 
 
 void UVMAdvisor::op_start_callback(std::shared_ptr<OpStart_t> op) {
-    fprintf(stdout, "Op start: %s, ctx: %p\n", op->op_name.c_str(), op->ctx);
+    op_stack.push(op->op_name);
+    op_stats.count++;
+
+    // if (op->op_name == "aten::matmul") {
+    //     auto backtraces = get_backtrace();
+    //     auto py_frames = get_pyframes();
+    //     auto bt_str = vector2str(backtraces);
+    //     auto pf_str = vector2str(py_frames);
+
+    //     std::cout << "Backtrace hash: " << sha256(bt_str) << std::endl;
+    //     std::cout << bt_str << std::endl;
+    //     std::cout << "Python frame hash: " << sha256(pf_str) << std::endl;
+    //     std::cout << pf_str << std::endl;
+    // }
 
     _timer.increment(true);
 }
 
 
 void UVMAdvisor::op_end_callback(std::shared_ptr<OpEnd_t> op) {
-    fprintf(stdout, "Op end: %s, ctx: %p\n", op->op_name.c_str(), op->ctx);
+    op_stack.pop();
+    if (op_stack.empty()) {
+        op_stats.group_count++;
+        fprintf(out_fp, "op_name: %s, gid: %lu, oid: %lu ------------------+++++-------------,kid: %lu, p_k: %lu\n",
+                op->op_name.c_str(), op_stats.group_count, op_stats.count, op_stats.pending_kernels, kernel_count);
+        fflush(out_fp);
+        op_stats.pending_kernels = 0;
+    }
 
     _timer.increment(true);
 }
 
 void UVMAdvisor::gpu_data_analysis(void* data, uint64_t size) {
+    MemoryAccessTracker* tracker = (MemoryAccessTracker*)data;
+    MemoryAccessState* states = tracker->access_state;
+    TensorAccessState* tensor_states = tracker->tensor_access_state;
+    
+    for (uint32_t i = 0; i < states->size; i++) {
+        if (states->touch[i] == 1) {
+            fprintf(out_fp, "Memory access: %lu, size: %lu\n", states->start_end[i].start, states->start_end[i].end - states->start_end[i].start);
+        }
+    }
 
+    for (uint32_t i = 0; i < tensor_states->size; i++) {
+        if (tensor_states->touch[i] == 1) {
+            fprintf(out_fp, "Tensor access: %lu, size: %lu\n", tensor_states->start_end[i].start, tensor_states->start_end[i].end - tensor_states->start_end[i].start);
+        }
+    }
 }
 
 
 void UVMAdvisor::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
+    MemoryRange* _ranges = (MemoryRange*)ranges;
+    *count = 0;
+    for (auto mem : active_memories) {
+        _ranges[*count].start = mem.second->addr;
+        _ranges[*count].end = mem.second->addr + mem.second->size;
+        (*count)++;
+        if (*count >= limit) {
+            fprintf(out_fp, "Warning: query_ranges limit reached\n");
+            break;
+        }
+    }
+}
 
+void UVMAdvisor::query_tensors(void* ranges, uint32_t limit, uint32_t* count) {
+    MemoryRange* _ranges = (MemoryRange*)ranges;
+    *count = 0;
+    for (auto ten : active_tensors) {
+        _ranges[*count].start = ten.second->addr;
+        _ranges[*count].end = ten.second->addr + ten.second->size;
+        (*count)++;
+        if (*count >= limit) {
+            fprintf(out_fp, "Warning: query_tensors limit reached\n");
+            break;
+        }
+    }
 }
 
 
 void UVMAdvisor::flush() {
-    fprintf(stdout, "--------------------------------------------------------------------------------\n");
-    fprintf(stdout, "%-12s count: %-10lu\n", "[Kernel]", kernel_count);
-    fprintf(stdout, "%-12s count: %-10lu, size: %lu (%s)\n", 
+    
+    fprintf(out_fp, "--------------------------------------------------------------------------------\n");
+    fprintf(out_fp, "%-12s count: %-10lu\n", "[Kernel]", kernel_count);
+    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
             "[MemMalloc]", mem_stats.alloc_count, mem_stats.alloc_size, format_size(mem_stats.alloc_size).c_str());
-    fprintf(stdout, "%-12s count: %-10lu, size: %lu (%s)\n", 
+    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
             "[MemFree]", mem_stats.free_count, mem_stats.free_size, format_size(mem_stats.free_size).c_str());
-    fprintf(stdout, "%-12s count: %-10lu, size: %lu (%s)\n", 
+    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
             "[Memset]", set_stats.count, set_stats.size, format_size(set_stats.size).c_str());
 
     for (auto& it : cpy_stats) {
@@ -232,13 +327,15 @@ void UVMAdvisor::flush() {
                               it.first == MEMCPY_H2D ? "H2D" :
                               it.first == MEMCPY_D2H ? "D2H" : 
                               it.first == MEMCPY_D2D ? "D2D" : "N/A";
-        fprintf(stdout, "[Memcpy-%s] count: %-10lu, size: %lu (%s)\n",
+        fprintf(out_fp, "[Memcpy-%s] count: %-10lu, size: %lu (%s)\n",
                 direction, it.second.count, it.second.size, format_size(it.second.size).c_str());
     }
 
-    fprintf(stdout, "%-12s count: %-10lu, size: %lu (%s)\n", 
+    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
             "[TenMalloc]", ten_stats.alloc_count, ten_stats.alloc_size, format_size(ten_stats.alloc_size).c_str());
-    fprintf(stdout, "%-12s count: %-10lu, size: %lu (%s)\n", 
+    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
             "[TenFree]", ten_stats.free_count, ten_stats.free_size, format_size(ten_stats.free_size).c_str());
-    fprintf(stdout, "--------------------------------------------------------------------------------\n");
+    fprintf(out_fp, "%-12s count: %-10lu\n", "[Op]", op_stats.count);
+    fprintf(out_fp, "%-12s count: %-10lu\n", "[OpGroup]", op_stats.group_count);
+    fprintf(out_fp, "--------------------------------------------------------------------------------\n");
 }

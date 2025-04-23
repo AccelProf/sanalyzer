@@ -18,6 +18,7 @@ typedef enum {
     GPU_PATCH_APP_METRIC = 1,
     GPU_PATCH_MEM_TRACE = 2,
     GPU_PATCH_HOT_ANALYSIS = 3,
+    GPU_PATCH_UVM_ADVISOR = 4,
 } SanitizerPatchName_t;
 
 
@@ -61,6 +62,8 @@ YosemiteResult_t yosemite_operator_start_callback(void* ctx, std::string op_name
 YosemiteResult_t yosemite_operator_end_callback(void* ctx, std::string op_name);
 
 YosemiteResult_t yosemite_query_active_ranges(void* ranges, uint32_t limit, uint32_t* count);
+
+YosemiteResult_t yosemite_query_active_tensors(void* ranges, uint32_t limit, uint32_t* count);
 
 
 #endif // YOSEMITE_H

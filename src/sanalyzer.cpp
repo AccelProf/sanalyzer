@@ -158,7 +158,8 @@ YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
         options.patch_name = GPU_PATCH_HOT_ANALYSIS;
         options.patch_file = "gpu_patch_hot_analysis.fatbin";
     } else if (tool == UVM_ADVISOR) {
-        options.patch_name = GPU_NO_PATCH;
+        options.patch_name = GPU_PATCH_UVM_ADVISOR;
+        options.patch_file = "gpu_patch_uvm_advisor.fatbin";
     }
 
     // enable torch profiler?
@@ -222,6 +223,14 @@ YosemiteResult_t yosemite_operator_end_callback(void* ctx, std::string op_name) 
 YosemiteResult_t yosemite_query_active_ranges(void* ranges, uint32_t limit, uint32_t* count) {
     for (auto &tool : _tools) {
         tool.second->query_ranges(ranges, limit, count);
+    }
+    return YOSEMITE_SUCCESS;
+}
+
+
+YosemiteResult_t yosemite_query_active_tensors(void* ranges, uint32_t limit, uint32_t* count) {
+    for (auto &tool : _tools) {
+        tool.second->query_tensors(ranges, limit, count);
     }
     return YOSEMITE_SUCCESS;
 }
