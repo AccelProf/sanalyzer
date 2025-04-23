@@ -35,6 +35,8 @@ public:
 
     void query_ranges(void* ranges, uint32_t limit, uint32_t* count);
 
+    void query_tensors(void* ranges, uint32_t limit, uint32_t* count) override {};
+
     void flush();
 };
 

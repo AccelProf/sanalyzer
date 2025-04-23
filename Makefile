@@ -68,6 +68,6 @@ clean:
 .PHONY: install
 install: all
 	mkdir -p $(PREFIX)/lib
-	mkdir -p $(PREFIX)/include
+	# mkdir -p $(PREFIX)/include
 	cp -r $(LIB) $(PREFIX)/lib
-	cp -r $(INC_DIR)/$(PROJECT).h $(PREFIX)/include
+	# cp -r $(INC_DIR)/$(PROJECT).h $(PREFIX)/include

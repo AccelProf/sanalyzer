@@ -18,6 +18,8 @@ public:
 
     virtual void query_ranges(void* ranges, uint32_t limit, uint32_t* count) = 0;
 
+    virtual void query_tensors(void* ranges, uint32_t limit, uint32_t* count) = 0;
+
     virtual void flush() = 0;
 protected:
     AnalysisTool_t _tool;

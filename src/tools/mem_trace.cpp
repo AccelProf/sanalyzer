@@ -154,11 +154,6 @@ void MemTrace::gpu_data_analysis(void* data, uint64_t size) {
 }
 
 
-void MemTrace::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
-
-}
-
-
 void MemTrace::evt_callback(EventPtr_t evt) {
     switch (evt->evt_type) {
         case EventType_KERNEL_LAUNCH:
