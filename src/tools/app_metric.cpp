@@ -6,46 +6,12 @@
 #include <algorithm>
 #include <cassert>
 #include <fstream>
-#include <map>
 #include <vector>
 #include <string>
 #include <memory>
 
 
 using namespace yosemite;
-
-typedef struct Stats{
-    uint64_t num_allocs;
-    uint64_t num_kernels;
-    uint64_t cur_mem_usage;
-    uint64_t max_mem_usage;
-    uint64_t max_mem_accesses_per_kernel;
-    uint64_t avg_mem_accesses;
-    uint64_t tot_mem_accesses;
-    std::string max_mem_accesses_kernel;
-    uint64_t max_objs_per_kernel;
-    uint64_t avg_objs_per_kernel;
-    uint64_t tot_objs_per_kernel;
-    uint64_t max_obj_size_per_kernel;
-    uint64_t avg_obj_size_per_kernel;
-    uint64_t tot_obj_size_per_kernel;
-
-    Stats() = default;
-
-    ~Stats() = default;
-} Stats_t;
-
-static Stats_t _stats;
-
-static Timer_t _timer;
-
-
-static std::map<uint64_t, std::shared_ptr<KernelLauch_t>> kernel_events;
-static std::map<uint64_t, std::shared_ptr<MemAlloc_t>> alloc_events;
-static std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
-
-static std::map<std::string, uint32_t> kernel_invocations;
-
 
 
 void AppMetrics::evt_callback(EventPtr_t evt) {

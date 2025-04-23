@@ -1,11 +1,7 @@
 #include "tools/mem_trace.h"
 #include "utils/helper.h"
-#include "utils/event.h"
-#include "gpu_patch.h"
 
 #include <cstdint>
-#include <map>
-#include <vector>
 #include <fstream>
 #include <memory>
 #include <cassert>
@@ -13,20 +9,6 @@
 
 
 using namespace yosemite;
-
-static Timer_t _timer;
-
-static std::string output_directory;
-static uint32_t kernel_id = 0;
-
-static std::map<uint64_t, std::shared_ptr<KernelLauch_t>> kernel_events;
-static std::map<uint64_t, std::shared_ptr<MemAlloc_t>> alloc_events;
-static std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
-
-static std::map<uint64_t, std::shared_ptr<TenAlloc>> tensor_events;
-static std::map<DevPtr, std::shared_ptr<TenAlloc>> active_tensors;
-
-static std::vector<MemoryAccess> _traces;
 
 
 MemTrace::MemTrace() : Tool(MEM_TRACE) {

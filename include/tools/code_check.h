@@ -4,6 +4,7 @@
 
 #include "tools/tool.h"
 #include "utils/event.h"
+#include <map>
 
 namespace yosemite {
 
@@ -13,9 +14,21 @@ public:
         init();
     }
 
-    void init();
-
     ~CodeCheck() {}
+
+    void evt_callback(EventPtr_t evt);
+
+    void gpu_data_analysis(void* data, uint64_t size) override {};
+
+    void query_ranges(void* ranges, uint32_t limit, uint32_t* count) override {};
+
+    void query_tensors(void* ranges, uint32_t limit, uint32_t* count) override {};
+
+    void flush();
+
+private:
+
+    void init();
 
     void kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel);
 
@@ -37,15 +50,49 @@ public:
 
     void op_end_callback(std::shared_ptr<OpEnd_t> op);
 
-    void evt_callback(EventPtr_t evt);
 
-    void gpu_data_analysis(void* data, uint64_t size) override {};
+/*
+********************************* variables *********************************
+*/
+    typedef enum {
+        MEMCPY_UNKNOWN = 0,
+        MEMCPY_H2H = 1,
+        MEMCPY_H2D = 2,
+        MEMCPY_D2H = 3,
+        MEMCPY_D2D = 4,
+    } MemcpyDirection_t;
 
-    void query_ranges(void* ranges, uint32_t limit, uint32_t* count) override {};
+    struct CpyStats {
+        uint64_t count = 0;
+        uint64_t size = 0;
+    };
 
-    void query_tensors(void* ranges, uint32_t limit, uint32_t* count) override {};
+    struct SetStats {
+        uint64_t count = 0;
+        uint64_t size = 0;
+    };
 
-    void flush();
+    struct MemStats {
+        uint64_t alloc_count = 0;
+        uint64_t alloc_size = 0;
+        uint64_t free_count = 0;
+        uint64_t free_size = 0;
+    };
+
+    struct TenStats {
+        uint64_t alloc_count = 0;
+        uint64_t alloc_size = 0;
+        uint64_t free_count = 0;
+        uint64_t free_size = 0;
+    };
+
+
+    Timer_t _timer;
+    std::map<MemcpyDirection_t, CpyStats> cpy_stats;
+    SetStats set_stats;
+    MemStats mem_stats;
+    TenStats ten_stats;
+    uint64_t kernel_count = 0;
 };
 
 }   // yosemite

@@ -5,9 +5,8 @@
 #include "tools/hot_analysis.h"
 #include <cstring>
 #include "utils/helper.h"
-#include "gpu_patch.h"
 
-#include <map>
+
 #include <vector>
 #include <cassert>
 #include <cstring>
@@ -17,13 +16,6 @@
 using namespace yosemite;
 
 constexpr uint32_t RANGE_GRANULARITY = 2 * 1024 * 1024;
-
-static std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
-static std::map<DevPtr, std::shared_ptr<TenAlloc>> active_tensors;
-static std::map<MemoryRange, uint32_t> range_access_counts;
-
-static std::string output_directory;
-static uint32_t global_kernel_id = 0;
 
 
 HotAnalysis::HotAnalysis() : Tool(HOT_ANALYSIS) {
