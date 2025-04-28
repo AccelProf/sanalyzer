@@ -6,6 +6,12 @@
 #include "utils/event.h"
 
 #include <map>
+#include <vector>
+#include <tuple>
+#include <stack>
+#include <memory>
+#include <unordered_map>
+
 namespace yosemite {
 
 class UVMAdvisor final : public Tool {
@@ -61,7 +67,57 @@ private :
     std::map<uint64_t, std::shared_ptr<TenAlloc_t>> tenalloc_events;
     std::map<DevPtr, std::shared_ptr<TenAlloc_t>> active_tensors;
 
-    std::map<uint64_t, std::shared_ptr<KernelLauch_t>> kernel_events;
+    std::vector<std::shared_ptr<KernelLauch_t>> kernel_events;
+
+    typedef enum {
+        MEMCPY_UNKNOWN = 0,
+        MEMCPY_H2H = 1,
+        MEMCPY_H2D = 2,
+        MEMCPY_D2H = 3,
+        MEMCPY_D2D = 4,
+    } MemcpyDirection_t;
+    struct CpyStats {
+        uint64_t count = 0;
+        uint64_t size = 0;
+    };
+    std::map<MemcpyDirection_t, CpyStats> cpy_stats;
+    struct SetStats {
+        uint64_t count = 0;
+        uint64_t size = 0;
+    };
+    SetStats set_stats;
+
+    struct MemStats {
+        uint64_t alloc_count = 0;
+        uint64_t alloc_size = 0;
+        uint64_t free_count = 0;
+        uint64_t free_size = 0;
+    };
+    MemStats mem_stats;
+    struct TenStats {
+        uint64_t alloc_count = 0;
+        uint64_t alloc_size = 0;
+        uint64_t free_count = 0;
+        uint64_t free_size = 0;
+    };
+    TenStats ten_stats;
+
+    struct OpStats {
+        uint64_t count = 0;
+        uint64_t group_count = 0;
+        uint64_t pending_ops = 0;
+        uint64_t pending_kernels = 0;
+    };
+    OpStats op_stats;
+
+    using MemAllocVec = std::vector<std::shared_ptr<MemAlloc_t>>;
+    using TenAllocVec = std::vector<std::shared_ptr<TenAlloc_t>>;
+    using KernelResources = std::tuple<std::shared_ptr<KernelLauch_t>, MemAllocVec, TenAllocVec>;
+    using KernelResourceVec = std::vector<KernelResources>;
+    using OpResourceMap = std::map<uint64_t, std::pair<std::shared_ptr<OpStart_t>, KernelResourceVec>>;
+    KernelResourceVec kernel_resources;
+    OpResourceMap op_tables;
+    std::stack<std::shared_ptr<OpStart_t>> op_stack;
 };  
 
 }   // yosemite
