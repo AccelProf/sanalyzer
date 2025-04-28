@@ -8,64 +8,11 @@
 #include <algorithm>
 #include <cassert>
 #include <fstream>
-#include <vector>
 #include <string>
-#include <stack>
-#include <memory>
 #include <iostream>
 
 
 using namespace yosemite;
-
-typedef enum {
-    MEMCPY_UNKNOWN = 0,
-    MEMCPY_H2H = 1,
-    MEMCPY_H2D = 2,
-    MEMCPY_D2H = 3,
-    MEMCPY_D2D = 4,
-} MemcpyDirection_t;
-
-static Timer_t _timer;
-
-struct CpyStats {
-    uint64_t count = 0;
-    uint64_t size = 0;
-};
-
-struct SetStats {
-    uint64_t count = 0;
-    uint64_t size = 0;
-};
-
-struct MemStats {
-    uint64_t alloc_count = 0;
-    uint64_t alloc_size = 0;
-    uint64_t free_count = 0;
-    uint64_t free_size = 0;
-};
-
-struct TenStats {
-    uint64_t alloc_count = 0;
-    uint64_t alloc_size = 0;
-    uint64_t free_count = 0;
-    uint64_t free_size = 0;
-};
-
-struct OpStats {
-    uint64_t count = 0;
-    uint64_t group_count = 0;
-    uint64_t pending_kernels = 0;
-};
-
-
-static std::map<MemcpyDirection_t, CpyStats> cpy_stats;
-static SetStats set_stats;
-static MemStats mem_stats;
-static TenStats ten_stats;
-static uint64_t kernel_count = 0;
-static std::stack<std::string> op_stack;
-static OpStats op_stats;
-
 
 inline std::string vector2str(std::vector<std::string> &vec, int skip_first = 0, int skip_last = 0) {
     if (skip_first + skip_last > vec.size()) {
@@ -83,13 +30,13 @@ inline std::string vector2str(std::vector<std::string> &vec, int skip_first = 0,
 UVMAdvisor::UVMAdvisor() : Tool(UVM_ADVISOR) {
     init();
 
-    // out_fp = fopen("uvm_advisor.txt", "w");
-    out_fp = stdout;
+    out_fp = fopen("uvm_advisor.log", "w");
+    // out_fp = stdout;
 }
 
 
 UVMAdvisor::~UVMAdvisor() {
-    // fclose(out_fp);
+    fclose(out_fp);
 }
 
 void UVMAdvisor::init() {
@@ -142,19 +89,20 @@ void UVMAdvisor::evt_callback(EventPtr_t evt) {
 
 
 void UVMAdvisor::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
-    kernel_count++;
-    fprintf(out_fp, "[Kernel] id: %lu, name: %s\n", kernel_count, kernel->kernel_name.c_str());
-    fflush(out_fp);
+    kernel->timestamp = _timer.get();
+    kernel_events.push_back(kernel);
     op_stats.pending_kernels++;
     _timer.increment(true);
 }
 
 
 void UVMAdvisor::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
+    _timer.increment(true);
 }
 
 
 void UVMAdvisor::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
+    mem->timestamp = _timer.get();
     mem_stats.alloc_count++;
     mem_stats.alloc_size += mem->size;
     alloc_events.emplace(_timer.get(), mem);
@@ -211,6 +159,7 @@ void UVMAdvisor::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
     ten_stats.alloc_count++;
     ten_stats.alloc_size += ten->size;
 
+    ten->timestamp = _timer.get();
     tenalloc_events.emplace(_timer.get(), ten);
     active_tensors.emplace(ten->addr, ten);
 
@@ -231,8 +180,10 @@ void UVMAdvisor::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
 
 
 void UVMAdvisor::op_start_callback(std::shared_ptr<OpStart_t> op) {
-    op_stack.push(op->op_name);
+    op->timestamp = _timer.get();
+    op_stack.push(op);
     op_stats.count++;
+    op_stats.pending_ops++;
 
     // if (op->op_name == "aten::matmul") {
     //     auto backtraces = get_backtrace();
@@ -251,13 +202,18 @@ void UVMAdvisor::op_start_callback(std::shared_ptr<OpStart_t> op) {
 
 
 void UVMAdvisor::op_end_callback(std::shared_ptr<OpEnd_t> op) {
+    auto op_start = op_stack.top();
     op_stack.pop();
     if (op_stack.empty()) {
+        assert(op_tables.find(op_start->timestamp) == op_tables.end());
+        op_start->end_time = _timer.get();
+        op_start->pending_kernels = op_stats.pending_kernels;
+        op_start->pending_ops = op_stats.pending_ops;
+        op_tables[op_start->timestamp] = std::make_pair(op_start, kernel_resources);
         op_stats.group_count++;
-        fprintf(out_fp, "op_name: %s, gid: %lu, oid: %lu ------------------+++++-------------,kid: %lu, p_k: %lu\n",
-                op->op_name.c_str(), op_stats.group_count, op_stats.count, op_stats.pending_kernels, kernel_count);
-        fflush(out_fp);
         op_stats.pending_kernels = 0;
+        op_stats.pending_ops = 0;
+        kernel_resources.clear();
     }
 
     _timer.increment(true);
@@ -267,18 +223,26 @@ void UVMAdvisor::gpu_data_analysis(void* data, uint64_t size) {
     MemoryAccessTracker* tracker = (MemoryAccessTracker*)data;
     MemoryAccessState* states = tracker->access_state;
     TensorAccessState* tensor_states = tracker->tensor_access_state;
-    
+
+    MemAllocVec mem_alloc_vec;
+    TenAllocVec ten_alloc_vec;
+
     for (uint32_t i = 0; i < states->size; i++) {
         if (states->touch[i] == 1) {
-            fprintf(out_fp, "Memory access: %lu, size: %lu\n", states->start_end[i].start, states->start_end[i].end - states->start_end[i].start);
+            auto mem = active_memories.find(states->start_end[i].start);
+            mem_alloc_vec.push_back(mem->second);
         }
     }
 
     for (uint32_t i = 0; i < tensor_states->size; i++) {
         if (tensor_states->touch[i] == 1) {
-            fprintf(out_fp, "Tensor access: %lu, size: %lu\n", tensor_states->start_end[i].start, tensor_states->start_end[i].end - tensor_states->start_end[i].start);
+            auto ten = active_tensors.find(tensor_states->start_end[i].start);
+            ten_alloc_vec.push_back(ten->second);
         }
     }
+
+    auto kernel = kernel_events.back();
+    kernel_resources.push_back(std::make_tuple(kernel, mem_alloc_vec, ten_alloc_vec));
 }
 
 
@@ -314,7 +278,6 @@ void UVMAdvisor::query_tensors(void* ranges, uint32_t limit, uint32_t* count) {
 void UVMAdvisor::flush() {
     
     fprintf(out_fp, "--------------------------------------------------------------------------------\n");
-    fprintf(out_fp, "%-12s count: %-10lu\n", "[Kernel]", kernel_count);
     fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
             "[MemMalloc]", mem_stats.alloc_count, mem_stats.alloc_size, format_size(mem_stats.alloc_size).c_str());
     fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
@@ -338,4 +301,26 @@ void UVMAdvisor::flush() {
     fprintf(out_fp, "%-12s count: %-10lu\n", "[Op]", op_stats.count);
     fprintf(out_fp, "%-12s count: %-10lu\n", "[OpGroup]", op_stats.group_count);
     fprintf(out_fp, "--------------------------------------------------------------------------------\n");
+
+    for (auto& it : op_tables) {
+        auto op = it.second.first;
+        fprintf(out_fp, "Op - %.30s, timestamp: %lu, pending_ops: %lu, pending_kernels: %lu\n", 
+                op->op_name.c_str(), op->timestamp, op->pending_ops, op->pending_kernels);
+        for (auto& kernel_tuple : it.second.second) {
+            auto kernel = std::get<0>(kernel_tuple);
+            auto mem_alloc_vec = std::get<1>(kernel_tuple);
+            auto ten_alloc_vec = std::get<2>(kernel_tuple);
+            fprintf(out_fp, "   Kernel: %.30s, timestamp: %lu\n", kernel->kernel_name.c_str(), kernel->timestamp);
+            fprintf(out_fp, "       MemAlloc (%lu): ", mem_alloc_vec.size());
+            for (auto& mem : mem_alloc_vec) {
+                fprintf(out_fp, "(%p, %lu) ", mem->addr, mem->size);
+            }
+            fprintf(out_fp, "\n");
+            fprintf(out_fp, "       TenAlloc (%lu): ", ten_alloc_vec.size());
+            for (auto& ten : ten_alloc_vec) {
+                fprintf(out_fp, "(%p, %lu) ", ten->addr, ten->size);
+            }
+            fprintf(out_fp, "\n");
+        }
+    }
 }
