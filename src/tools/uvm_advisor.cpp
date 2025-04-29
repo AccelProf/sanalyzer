@@ -14,6 +14,9 @@
 
 using namespace yosemite;
 
+#define SANITIZER_UVM_MEMORY_FLAG 0x6
+#define LARGE_TENSOR_THRESHOLD 1048576
+
 inline std::string vector2str(std::vector<std::string> &vec, int skip_first = 0, int skip_last = 0) {
     if (skip_first + skip_last > vec.size()) {
         printf("Skip first and skip last are larger than the vector size\n");
@@ -102,6 +105,10 @@ void UVMAdvisor::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
 
 
 void UVMAdvisor::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
+    if (mem->alloc_type != SANITIZER_UVM_MEMORY_FLAG) {
+        return;
+    }
+
     mem->timestamp = _timer.get();
     mem_stats.alloc_count++;
     mem_stats.alloc_size += mem->size;
@@ -113,6 +120,10 @@ void UVMAdvisor::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
 
 
 void UVMAdvisor::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
+    if (mem->alloc_type != SANITIZER_UVM_MEMORY_FLAG) {
+        return;
+    }
+
     mem_stats.free_count++;
     mem_stats.free_size += mem->size;
 
@@ -156,6 +167,10 @@ void UVMAdvisor::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
 
 
 void UVMAdvisor::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
+    if (ten->size <= LARGE_TENSOR_THRESHOLD) {
+        return;
+    }
+
     ten_stats.alloc_count++;
     ten_stats.alloc_size += ten->size;
 
@@ -168,6 +183,10 @@ void UVMAdvisor::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
 
 
 void UVMAdvisor::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
+    if (-ten->size <= LARGE_TENSOR_THRESHOLD) {
+        return;
+    }
+
     ten_stats.free_count++;
     ten_stats.free_size += -ten->size;
 
@@ -205,11 +224,13 @@ void UVMAdvisor::op_end_callback(std::shared_ptr<OpEnd_t> op) {
     auto op_start = op_stack.top();
     op_stack.pop();
     if (op_stack.empty()) {
-        assert(op_tables.find(op_start->timestamp) == op_tables.end());
-        op_start->end_time = _timer.get();
-        op_start->pending_kernels = op_stats.pending_kernels;
-        op_start->pending_ops = op_stats.pending_ops;
-        op_tables[op_start->timestamp] = std::make_pair(op_start, kernel_resources);
+        if (op_stats.pending_kernels > 0) {
+            assert(op_tables.find(op_start->timestamp) == op_tables.end());
+            op_start->end_time = _timer.get();
+            op_start->pending_kernels = op_stats.pending_kernels;
+            op_start->pending_ops = op_stats.pending_ops;
+            op_tables[op_start->timestamp] = std::make_pair(op_start, kernel_resources);
+        }
         op_stats.group_count++;
         op_stats.pending_kernels = 0;
         op_stats.pending_ops = 0;
