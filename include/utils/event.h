@@ -67,6 +67,7 @@ typedef struct KernelLauch : public Event {
     uint64_t mem_accesses;
     uint32_t touched_objects;
     uint32_t touched_objects_size;
+    uint64_t key;   // for UVM Advisor
 
     KernelLauch() {
         evt_type = EventType_KERNEL_LAUNCH;
@@ -102,6 +103,7 @@ typedef struct MemAlloc : public Event {
     uint64_t size;
     uint64_t release_time;
     int alloc_type;
+    uint64_t key;   // for UVM Advisor
 
     MemAlloc() {
         evt_type = EventType_MEM_ALLOC;
@@ -176,6 +178,7 @@ typedef struct TenAlloc : public Event {
     int64_t allocated_size;
     int64_t reserved_size;
     uint64_t release_time;
+    uint64_t key;   // for UVM Advisor
 
     TenAlloc() {
         evt_type = EventType_TEN_ALLOC;
@@ -213,7 +216,7 @@ typedef struct OpStart : public Event {
     std::uint32_t pending_ops;
     std::string op_name;
     void* ctx;
-
+    uint64_t key;   // for UVM Advisor
     OpStart() {
         evt_type = EventType_OP_START;
     }
