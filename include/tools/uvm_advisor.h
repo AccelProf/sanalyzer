@@ -118,6 +118,14 @@ private :
     KernelResourceVec kernel_resources;
     OpResourceMap op_tables;
     std::stack<std::shared_ptr<OpStart_t>> op_stack;
+
+    typedef struct {
+        uint64_t op_id = 0;
+        uint64_t ten_id = 0;
+        uint64_t mem_id = 0;
+        uint64_t kernel_id = 0;
+    } opt_keys_t;
+    opt_keys_t opt_keys;
 };  
 
 }   // yosemite

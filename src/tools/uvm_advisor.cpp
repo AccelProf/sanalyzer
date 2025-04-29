@@ -92,6 +92,8 @@ void UVMAdvisor::evt_callback(EventPtr_t evt) {
 
 
 void UVMAdvisor::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
+    opt_keys.kernel_id ++;
+    kernel->key = opt_keys.kernel_id;
     kernel->timestamp = _timer.get();
     kernel_events.push_back(kernel);
     op_stats.pending_kernels++;
@@ -108,7 +110,8 @@ void UVMAdvisor::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
     if (mem->alloc_type != SANITIZER_UVM_MEMORY_FLAG) {
         return;
     }
-
+    opt_keys.mem_id ++;
+    mem->key = opt_keys.mem_id;
     mem->timestamp = _timer.get();
     mem_stats.alloc_count++;
     mem_stats.alloc_size += mem->size;
@@ -170,7 +173,8 @@ void UVMAdvisor::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
     if (ten->size <= LARGE_TENSOR_THRESHOLD) {
         return;
     }
-
+    opt_keys.ten_id ++;
+    ten->key = opt_keys.ten_id;
     ten_stats.alloc_count++;
     ten_stats.alloc_size += ten->size;
 
@@ -199,6 +203,8 @@ void UVMAdvisor::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
 
 
 void UVMAdvisor::op_start_callback(std::shared_ptr<OpStart_t> op) {
+    opt_keys.op_id ++;
+    op->key = opt_keys.op_id;
     op->timestamp = _timer.get();
     op_stack.push(op);
     op_stats.count++;
@@ -340,6 +346,29 @@ void UVMAdvisor::flush() {
             fprintf(out_fp, "       TenAlloc (%lu): ", ten_alloc_vec.size());
             for (auto& ten : ten_alloc_vec) {
                 fprintf(out_fp, "(%p, %lu) ", ten->addr, ten->size);
+            }
+            fprintf(out_fp, "\n");
+        }
+    }
+
+    fprintf(out_fp, "================================================================================\n");
+     for (auto& it : op_tables) {
+        auto op = it.second.first;
+        fprintf(out_fp, "Op - %.30s, op_id: %lu, pending_ops: %lu, pending_kernels: %lu\n", 
+                op->op_name.c_str(), op->key, op->pending_ops, op->pending_kernels);
+        for (auto& kernel_tuple : it.second.second) {
+            auto kernel = std::get<0>(kernel_tuple);
+            auto mem_alloc_vec = std::get<1>(kernel_tuple);
+            auto ten_alloc_vec = std::get<2>(kernel_tuple);
+            fprintf(out_fp, "   Kernel: %.30s, kernel_id: %lu\n", kernel->kernel_name.c_str(), kernel->key);
+            fprintf(out_fp, "       MemAlloc (%lu): ", mem_alloc_vec.size());
+            for (auto& mem : mem_alloc_vec) {
+                fprintf(out_fp, "%lu:(%lu, %lu), ", mem->key, mem->addr, mem->size);
+            }
+            fprintf(out_fp, "\n");
+            fprintf(out_fp, "       TenAlloc (%lu): ", ten_alloc_vec.size());
+            for (auto& ten : ten_alloc_vec) {
+                fprintf(out_fp, "%lu:(%lu, %lu), ", ten->key, ten->addr, ten->size);
             }
             fprintf(out_fp, "\n");
         }
