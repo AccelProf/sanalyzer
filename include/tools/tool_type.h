@@ -7,7 +7,8 @@ typedef enum {
     MEM_TRACE = 2,
     HOT_ANALYSIS = 3,
     UVM_ADVISOR = 4,
-    TOOL_NUMS = 5
+    APP_ANALYSIS = 5,
+    TOOL_NUMS = 6
 } AnalysisTool_t;
 
 #endif // TOOL_TYPE_H

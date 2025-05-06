@@ -19,6 +19,7 @@ typedef enum {
     GPU_PATCH_MEM_TRACE = 2,
     GPU_PATCH_HOT_ANALYSIS = 3,
     GPU_PATCH_UVM_ADVISOR = 4,
+    GPU_PATCH_APP_ANALYSIS = 5,
 } SanitizerPatchName_t;
 
 
