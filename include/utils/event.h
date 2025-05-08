@@ -64,7 +64,7 @@ typedef struct KernelLauch : public Event {
     uint64_t end_time;
     std::string kernel_name;
     uint32_t kernel_id;
-    uint64_t mem_accesses;
+    uint64_t access_count;
     uint32_t touched_objects;
     uint32_t touched_objects_size;
     uint64_t key;   // for UVM Advisor
@@ -84,7 +84,7 @@ typedef struct KernelLauch : public Event {
 typedef struct KernelEnd : public Event {
     uint64_t end_time;
     std::string kernel_name;
-    uint64_t mem_accesses;
+    uint64_t access_count;
 
     KernelEnd() {
         evt_type = EventType_KERNEL_END;

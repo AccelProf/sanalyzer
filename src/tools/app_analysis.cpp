@@ -33,13 +33,10 @@ inline std::string vector2str(std::vector<std::string> &vec, int skip_first = 0,
 AppAnalysis::AppAnalysis() : Tool(APP_ANALYSIS) {
     init();
 
-    out_fp = fopen("uvm_advisor.log", "w");
-    // out_fp = stdout;
 }
 
 
 AppAnalysis::~AppAnalysis() {
-    fclose(out_fp);
 }
 
 void AppAnalysis::init() {
@@ -92,11 +89,13 @@ void AppAnalysis::evt_callback(EventPtr_t evt) {
 
 
 void AppAnalysis::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
-    opt_keys.kernel_id ++;
-    kernel->key = opt_keys.kernel_id;
-    kernel->timestamp = _timer.get();
-    kernel_events.push_back(kernel);
-    op_stats.pending_kernels++;
+    kernel_id++;
+    KernelStats stats;
+    stats.kernel_launch = kernel;
+    stats.tensor_footprint_size = ten_stats.alloc_size;
+    stats.memory_footprint_size = mem_stats.alloc_size;
+    kernel_stats.emplace(kernel_id, stats);
+
     _timer.increment(true);
 }
 
@@ -107,15 +106,9 @@ void AppAnalysis::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
 
 
 void AppAnalysis::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
-    if (mem->alloc_type != SANITIZER_UVM_MEMORY_FLAG) {
-        return;
-    }
-    opt_keys.mem_id ++;
-    mem->key = opt_keys.mem_id;
-    mem->timestamp = _timer.get();
     mem_stats.alloc_count++;
     mem_stats.alloc_size += mem->size;
-    alloc_events.emplace(_timer.get(), mem);
+    mem_stats.max_size = std::max(mem_stats.max_size, mem_stats.alloc_size);
     active_memories.emplace(mem->addr, mem);
 
     _timer.increment(true);
@@ -123,12 +116,9 @@ void AppAnalysis::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
 
 
 void AppAnalysis::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
-    if (mem->alloc_type != SANITIZER_UVM_MEMORY_FLAG) {
-        return;
-    }
-
     mem_stats.free_count++;
     mem_stats.free_size += mem->size;
+    mem_stats.alloc_size -= mem->size;
 
     auto it = active_memories.find(mem->addr);
     assert(it != active_memories.end());
@@ -140,46 +130,22 @@ void AppAnalysis::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
 
 
 void AppAnalysis::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
-    // auto backtraces = get_backtrace();
-    // auto py_frames = get_pyframes();
-    // auto bt_str = vector2str(backtraces);
-    // auto pf_str = vector2str(py_frames);
-
-    // std::cout << "Backtrace hash: " << sha256(bt_str) << std::endl;
-    // std::cout << bt_str << std::endl;
-    // std::cout << "Python frame hash: " << sha256(pf_str) << std::endl;
-    // std::cout << pf_str << std::endl;
-
-    MemcpyDirection_t direction = (MemcpyDirection_t)mem->direction;
-    if (cpy_stats.find(direction) == cpy_stats.end()) {
-        cpy_stats[direction] = CpyStats{0, 0};
-    }
-    cpy_stats[direction].count++;
-    cpy_stats[direction].size += mem->size;
 
     _timer.increment(true);
 }
 
 
 void AppAnalysis::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
-    set_stats.count++;
-    set_stats.size += mem->size;
 
     _timer.increment(true);
 }
 
 
 void AppAnalysis::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
-    if (ten->size <= LARGE_TENSOR_THRESHOLD) {
-        return;
-    }
-    opt_keys.ten_id ++;
-    ten->key = opt_keys.ten_id;
     ten_stats.alloc_count++;
     ten_stats.alloc_size += ten->size;
+    ten_stats.max_size = std::max(ten_stats.max_size, ten_stats.alloc_size);
 
-    ten->timestamp = _timer.get();
-    tenalloc_events.emplace(_timer.get(), ten);
     active_tensors.emplace(ten->addr, ten);
 
     _timer.increment(true);
@@ -187,12 +153,9 @@ void AppAnalysis::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
 
 
 void AppAnalysis::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
-    if (-ten->size <= LARGE_TENSOR_THRESHOLD) {
-        return;
-    }
-
     ten_stats.free_count++;
     ten_stats.free_size += -ten->size;
+    ten_stats.alloc_size -= -ten->size;
 
     auto it = active_tensors.find(ten->addr);
     assert(it != active_tensors.end());
@@ -203,45 +166,12 @@ void AppAnalysis::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
 
 
 void AppAnalysis::op_start_callback(std::shared_ptr<OpStart_t> op) {
-    opt_keys.op_id ++;
-    op->key = opt_keys.op_id;
-    op->timestamp = _timer.get();
-    op_stack.push(op);
-    op_stats.count++;
-    op_stats.pending_ops++;
-
-    // if (op->op_name == "aten::matmul") {
-    //     auto backtraces = get_backtrace();
-    //     auto py_frames = get_pyframes();
-    //     auto bt_str = vector2str(backtraces);
-    //     auto pf_str = vector2str(py_frames);
-
-    //     std::cout << "Backtrace hash: " << sha256(bt_str) << std::endl;
-    //     std::cout << bt_str << std::endl;
-    //     std::cout << "Python frame hash: " << sha256(pf_str) << std::endl;
-    //     std::cout << pf_str << std::endl;
-    // }
 
     _timer.increment(true);
 }
 
 
 void AppAnalysis::op_end_callback(std::shared_ptr<OpEnd_t> op) {
-    auto op_start = op_stack.top();
-    op_stack.pop();
-    if (op_stack.empty()) {
-        if (op_stats.pending_kernels > 0) {
-            assert(op_tables.find(op_start->timestamp) == op_tables.end());
-            op_start->end_time = _timer.get();
-            op_start->pending_kernels = op_stats.pending_kernels;
-            op_start->pending_ops = op_stats.pending_ops;
-            op_tables[op_start->timestamp] = std::make_pair(op_start, kernel_resources);
-        }
-        op_stats.group_count++;
-        op_stats.pending_kernels = 0;
-        op_stats.pending_ops = 0;
-        kernel_resources.clear();
-    }
 
     _timer.increment(true);
 }
@@ -251,25 +181,25 @@ void AppAnalysis::gpu_data_analysis(void* data, uint64_t size) {
     MemoryAccessState* states = tracker->access_state;
     TensorAccessState* tensor_states = tracker->tensor_access_state;
 
-    MemAllocVec mem_alloc_vec;
-    TenAllocVec ten_alloc_vec;
+    uint64_t access_count = tracker->accessCount;
 
+    uint64_t mem_size = 0;
     for (uint32_t i = 0; i < states->size; i++) {
         if (states->touch[i] == 1) {
-            auto mem = active_memories.find(states->start_end[i].start);
-            mem_alloc_vec.push_back(mem->second);
+            mem_size += states->start_end[i].end - states->start_end[i].start;
         }
     }
 
+    uint64_t ten_size = 0;
     for (uint32_t i = 0; i < tensor_states->size; i++) {
         if (tensor_states->touch[i] == 1) {
-            auto ten = active_tensors.find(tensor_states->start_end[i].start);
-            ten_alloc_vec.push_back(ten->second);
+            ten_size += tensor_states->start_end[i].end - tensor_states->start_end[i].start;
         }
     }
 
-    auto kernel = kernel_events.back();
-    kernel_resources.push_back(std::make_tuple(kernel, mem_alloc_vec, ten_alloc_vec));
+    kernel_stats[kernel_id].kernel_launch->access_count = access_count;
+    kernel_stats[kernel_id].tensor_working_set_size = ten_size;
+    kernel_stats[kernel_id].memory_working_set_size = mem_size;
 }
 
 
@@ -281,7 +211,7 @@ void AppAnalysis::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
         _ranges[*count].end = mem.second->addr + mem.second->size;
         (*count)++;
         if (*count >= limit) {
-            fprintf(out_fp, "Warning: query_ranges limit reached\n");
+            printf("Warning: query_ranges limit reached\n");
             break;
         }
     }
@@ -295,7 +225,7 @@ void AppAnalysis::query_tensors(void* ranges, uint32_t limit, uint32_t* count) {
         _ranges[*count].end = ten.second->addr + ten.second->size;
         (*count)++;
         if (*count >= limit) {
-            fprintf(out_fp, "Warning: query_tensors limit reached\n");
+            printf("Warning: query_tensors limit reached\n");
             break;
         }
     }
@@ -303,74 +233,40 @@ void AppAnalysis::query_tensors(void* ranges, uint32_t limit, uint32_t* count) {
 
 
 void AppAnalysis::flush() {
+    const char* env_filename = std::getenv("YOSEMITE_APP_NAME");
+    std::string filename = "output.log";
+    if (env_filename) {
+        filename = std::string(env_filename) + "_app_analysis.log";
+    } else {
+        fprintf(stdout, "No filename specified. Using default filename: %s\n", filename.c_str());
+    }
+    printf("Dumping traces to %s\n", filename.c_str());
     
-    fprintf(out_fp, "--------------------------------------------------------------------------------\n");
-    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
-            "[MemMalloc]", mem_stats.alloc_count, mem_stats.alloc_size, format_size(mem_stats.alloc_size).c_str());
-    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
-            "[MemFree]", mem_stats.free_count, mem_stats.free_size, format_size(mem_stats.free_size).c_str());
-    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
-            "[Memset]", set_stats.count, set_stats.size, format_size(set_stats.size).c_str());
+    FILE* out_fp = fopen(filename.c_str(), "w");
+    // print tensor stats
+    fprintf(out_fp, "Tensor Stats:\n");
+    fprintf(out_fp, "  Alloc Count: %lu\n", ten_stats.alloc_count);
+    fprintf(out_fp, "  Alloc Size: %lu\n", ten_stats.alloc_size);
+    fprintf(out_fp, "  Free Count: %lu\n", ten_stats.free_count);
+    fprintf(out_fp, "  Free Size: %lu\n", ten_stats.free_size);
+    // print memory stats
+    fprintf(out_fp, "Memory Stats:\n");
+    fprintf(out_fp, "  Alloc Count: %lu\n", mem_stats.alloc_count);
+    fprintf(out_fp, "  Alloc Size: %lu\n", mem_stats.alloc_size);
+    fprintf(out_fp, "  Free Count: %lu\n", mem_stats.free_count);
+    fprintf(out_fp, "  Free Size: %lu\n", mem_stats.free_size);
 
-    for (auto& it : cpy_stats) {
-        const char* direction = it.first == MEMCPY_H2H ? "H2H" : 
-                              it.first == MEMCPY_H2D ? "H2D" :
-                              it.first == MEMCPY_D2H ? "D2H" : 
-                              it.first == MEMCPY_D2D ? "D2D" : "N/A";
-        fprintf(out_fp, "[Memcpy-%s] count: %-10lu, size: %lu (%s)\n",
-                direction, it.second.count, it.second.size, format_size(it.second.size).c_str());
+    // print kernel stats
+    fprintf(out_fp, "Kernel Stats:\n");
+    for (auto& [kernel_id, stats] : kernel_stats) {
+        fprintf(out_fp, "Kernel ID: %lu\n", kernel_id);
+        fprintf(out_fp, "  Kernel Name: %s\n", stats.kernel_launch->kernel_name.c_str());
+        fprintf(out_fp, "  Access Count: %lu\n", stats.kernel_launch->access_count);
+        fprintf(out_fp, "  Tensor Working Set Size: %lu (%s)\n", stats.tensor_working_set_size, format_size(stats.tensor_working_set_size).c_str());
+        fprintf(out_fp, "  Memory Working Set Size: %lu (%s)\n", stats.memory_working_set_size, format_size(stats.memory_working_set_size).c_str());
+        fprintf(out_fp, "  Tensor Footprint Size: %lu (%s)\n", stats.tensor_footprint_size, format_size(stats.tensor_footprint_size).c_str());
+        fprintf(out_fp, "  Memory Footprint Size: %lu (%s)\n", stats.memory_footprint_size, format_size(stats.memory_footprint_size).c_str());
     }
 
-    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
-            "[TenMalloc]", ten_stats.alloc_count, ten_stats.alloc_size, format_size(ten_stats.alloc_size).c_str());
-    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
-            "[TenFree]", ten_stats.free_count, ten_stats.free_size, format_size(ten_stats.free_size).c_str());
-    fprintf(out_fp, "%-12s count: %-10lu\n", "[Op]", op_stats.count);
-    fprintf(out_fp, "%-12s count: %-10lu\n", "[OpGroup]", op_stats.group_count);
-    fprintf(out_fp, "--------------------------------------------------------------------------------\n");
-
-    for (auto& it : op_tables) {
-        auto op = it.second.first;
-        fprintf(out_fp, "Op - %.30s, timestamp: %lu, pending_ops: %lu, pending_kernels: %lu\n", 
-                op->op_name.c_str(), op->timestamp, op->pending_ops, op->pending_kernels);
-        for (auto& kernel_tuple : it.second.second) {
-            auto kernel = std::get<0>(kernel_tuple);
-            auto mem_alloc_vec = std::get<1>(kernel_tuple);
-            auto ten_alloc_vec = std::get<2>(kernel_tuple);
-            fprintf(out_fp, "   Kernel: %.30s, timestamp: %lu\n", kernel->kernel_name.c_str(), kernel->timestamp);
-            fprintf(out_fp, "       MemAlloc (%lu): ", mem_alloc_vec.size());
-            for (auto& mem : mem_alloc_vec) {
-                fprintf(out_fp, "(%p, %lu) ", mem->addr, mem->size);
-            }
-            fprintf(out_fp, "\n");
-            fprintf(out_fp, "       TenAlloc (%lu): ", ten_alloc_vec.size());
-            for (auto& ten : ten_alloc_vec) {
-                fprintf(out_fp, "(%p, %lu) ", ten->addr, ten->size);
-            }
-            fprintf(out_fp, "\n");
-        }
-    }
-
-    fprintf(out_fp, "================================================================================\n");
-     for (auto& it : op_tables) {
-        auto op = it.second.first;
-        fprintf(out_fp, "Op - %.30s, op_id: %lu, pending_ops: %lu, pending_kernels: %lu\n", 
-                op->op_name.c_str(), op->key, op->pending_ops, op->pending_kernels);
-        for (auto& kernel_tuple : it.second.second) {
-            auto kernel = std::get<0>(kernel_tuple);
-            auto mem_alloc_vec = std::get<1>(kernel_tuple);
-            auto ten_alloc_vec = std::get<2>(kernel_tuple);
-            fprintf(out_fp, "   Kernel: %.30s, kernel_id: %lu\n", kernel->kernel_name.c_str(), kernel->key);
-            fprintf(out_fp, "       MemAlloc (%lu): ", mem_alloc_vec.size());
-            for (auto& mem : mem_alloc_vec) {
-                fprintf(out_fp, "%lu:(%lu, %lu), ", mem->key, mem->addr, mem->size);
-            }
-            fprintf(out_fp, "\n");
-            fprintf(out_fp, "       TenAlloc (%lu): ", ten_alloc_vec.size());
-            for (auto& ten : ten_alloc_vec) {
-                fprintf(out_fp, "%lu:(%lu, %lu), ", ten->key, ten->addr, ten->size);
-            }
-            fprintf(out_fp, "\n");
-        }
-    }
+    fclose(out_fp);
 }

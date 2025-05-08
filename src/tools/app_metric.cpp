@@ -88,7 +88,7 @@ void AppMetrics::gpu_data_analysis(void* data, uint64_t size) {
     }
 
     auto event = std::prev(kernel_events.end())->second;
-    event->mem_accesses = tracker->accessCount;
+    event->access_count = tracker->accessCount;
     event->touched_objects = touched_objects;
     event->touched_objects_size = touched_objects_size;
 }
@@ -136,15 +136,15 @@ void AppMetrics::flush() {
     count = 0;
     for (auto event : kernel_events) {
         out << "Kernel " << count << " ("
-            << "refs=" << event.second->mem_accesses
+            << "refs=" << event.second->access_count
             << ", objs=" << event.second->touched_objects
             << ", obj_size=" << event.second->touched_objects_size
             << ", " << format_size(event.second->touched_objects_size)
             << "):\t" << event.second->kernel_name << std::endl;
-        _stats.tot_mem_accesses += event.second->mem_accesses;
-        if (_stats.max_mem_accesses_per_kernel < event.second->mem_accesses) {
+        _stats.tot_mem_accesses += event.second->access_count;
+        if (_stats.max_mem_accesses_per_kernel < event.second->access_count) {
             _stats.max_mem_accesses_kernel = event.second->kernel_name;
-            _stats.max_mem_accesses_per_kernel = event.second->mem_accesses;
+            _stats.max_mem_accesses_per_kernel = event.second->access_count;
         }
 
         _stats.tot_objs_per_kernel += event.second->touched_objects;
