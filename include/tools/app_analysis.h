@@ -57,37 +57,25 @@ private :
 /*
 ********************************* variables *********************************
 */
-    FILE* out_fp;
 
     Timer_t _timer;
 
-    std::map<uint64_t, std::shared_ptr<MemAlloc_t>> alloc_events;
     std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
 
-    std::map<uint64_t, std::shared_ptr<TenAlloc_t>> tenalloc_events;
     std::map<DevPtr, std::shared_ptr<TenAlloc_t>> active_tensors;
 
-    std::vector<std::shared_ptr<KernelLauch_t>> kernel_events;
-
-    typedef enum {
-        MEMCPY_UNKNOWN = 0,
-        MEMCPY_H2H = 1,
-        MEMCPY_H2D = 2,
-        MEMCPY_D2H = 3,
-        MEMCPY_D2D = 4,
-    } MemcpyDirection_t;
-    struct CpyStats {
-        uint64_t count = 0;
-        uint64_t size = 0;
+    struct KernelStats {
+        std::shared_ptr<KernelLauch_t> kernel_launch;
+        size_t tensor_working_set_size = 0;
+        size_t memory_working_set_size = 0;
+        size_t tensor_footprint_size = 0;
+        size_t memory_footprint_size = 0;
     };
-    std::map<MemcpyDirection_t, CpyStats> cpy_stats;
-    struct SetStats {
-        uint64_t count = 0;
-        uint64_t size = 0;
-    };
-    SetStats set_stats;
+    uint64_t kernel_id = 0;
+    std::map<uint64_t, KernelStats> kernel_stats;
 
     struct MemStats {
+        uint64_t max_size = 0;
         uint64_t alloc_count = 0;
         uint64_t alloc_size = 0;
         uint64_t free_count = 0;
@@ -95,6 +83,7 @@ private :
     };
     MemStats mem_stats;
     struct TenStats {
+        uint64_t max_size = 0;
         uint64_t alloc_count = 0;
         uint64_t alloc_size = 0;
         uint64_t free_count = 0;
@@ -102,30 +91,6 @@ private :
     };
     TenStats ten_stats;
 
-    struct OpStats {
-        uint64_t count = 0;
-        uint64_t group_count = 0;
-        uint64_t pending_ops = 0;
-        uint64_t pending_kernels = 0;
-    };
-    OpStats op_stats;
-
-    using MemAllocVec = std::vector<std::shared_ptr<MemAlloc_t>>;
-    using TenAllocVec = std::vector<std::shared_ptr<TenAlloc_t>>;
-    using KernelResources = std::tuple<std::shared_ptr<KernelLauch_t>, MemAllocVec, TenAllocVec>;
-    using KernelResourceVec = std::vector<KernelResources>;
-    using OpResourceMap = std::map<uint64_t, std::pair<std::shared_ptr<OpStart_t>, KernelResourceVec>>;
-    KernelResourceVec kernel_resources;
-    OpResourceMap op_tables;
-    std::stack<std::shared_ptr<OpStart_t>> op_stack;
-
-    typedef struct {
-        uint64_t op_id = 0;
-        uint64_t ten_id = 0;
-        uint64_t mem_id = 0;
-        uint64_t kernel_id = 0;
-    } opt_keys_t;
-    opt_keys_t opt_keys;
 };  
 
 }   // yosemite
