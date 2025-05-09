@@ -10,7 +10,6 @@
 #include <tuple>
 #include <stack>
 #include <memory>
-#include <unordered_map>
 
 namespace yosemite {
 
