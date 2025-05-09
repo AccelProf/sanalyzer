@@ -20,6 +20,7 @@ typedef enum {
     GPU_PATCH_HOT_ANALYSIS = 3,
     GPU_PATCH_UVM_ADVISOR = 4,
     GPU_PATCH_APP_ANALYSIS = 5,
+    GPU_PATCH_APP_ANALYSIS_CPU = 6,
 } SanitizerPatchName_t;
 
 
