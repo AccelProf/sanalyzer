@@ -21,18 +21,19 @@ typedef enum {
     GPU_PATCH_UVM_ADVISOR = 4,
     GPU_PATCH_APP_ANALYSIS = 5,
     GPU_PATCH_APP_ANALYSIS_CPU = 6,
-} SanitizerPatchName_t;
+    GPU_PATCH_APP_ANALYSIS_NVBIT = 7,
+} AccelProfPatchName_t;
 
 
-typedef struct SanitizerOptions {
-    SanitizerPatchName_t patch_name;
+typedef struct AccelProfOptions {
+    AccelProfPatchName_t patch_name;
     std::string patch_file;
     bool sanitizer_callback_enabled = true;
     bool torch_prof_enabled = false;
 
-    SanitizerOptions() = default;
-    ~SanitizerOptions() = default;
-} SanitizerOptions_t;
+    AccelProfOptions() = default;
+    ~AccelProfOptions() = default;
+} AccelProfOptions_t;
 
 
 YosemiteResult_t yosemite_alloc_callback(uint64_t ptr, uint64_t size, int type);
@@ -49,7 +50,7 @@ YosemiteResult_t yosemite_kernel_end_callback(std::string kernel_name);
 
 YosemiteResult_t yosemite_gpu_data_analysis(void* data, uint64_t size);
 
-YosemiteResult_t yosemite_init(SanitizerOptions_t& options);
+YosemiteResult_t yosemite_init(AccelProfOptions_t& options);
 
 YosemiteResult_t yosemite_terminate();
 
