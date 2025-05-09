@@ -11,7 +11,7 @@
 #include <stack>
 #include <memory>
 #include <set>
-#include <unordered_map>
+
 
 namespace yosemite {
 
@@ -54,6 +54,9 @@ private :
 
     void op_end_callback(std::shared_ptr<OpEnd_t> op);
 
+    std::shared_ptr<MemAlloc_t> query_memory_ranges_cpu(uint64_t ptr);
+
+    std::shared_ptr<TenAlloc_t> query_tensor_ranges_cpu(uint64_t ptr);
 
 /*
 ********************************* variables *********************************
@@ -61,12 +64,11 @@ private :
 
     Timer_t _timer;
 
-    std::unordered_map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
+    std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
     std::set<std::shared_ptr<MemAlloc_t>> touched_memories;
 
-    std::unordered_map<DevPtr, std::shared_ptr<TenAlloc_t>> active_tensors;
+    std::map<DevPtr, std::shared_ptr<TenAlloc_t>> active_tensors;
     std::set<std::shared_ptr<TenAlloc_t>> touched_tensors;
-
     struct KernelStats {
         std::shared_ptr<KernelLauch_t> kernel_launch;
         size_t tensor_working_set_size = 0;

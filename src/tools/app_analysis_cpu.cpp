@@ -100,6 +100,28 @@ void AppAnalysisCPU::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel
 }
 
 
+std::shared_ptr<MemAlloc_t> AppAnalysisCPU::query_memory_ranges_cpu(uint64_t ptr) {
+    for (auto mem : active_memories) {
+        if (mem.second->addr <= ptr && mem.second->addr + mem.second->size >= ptr) {
+            return mem.second;
+        }
+    }
+    assert(false);
+    return nullptr;
+}
+
+
+std::shared_ptr<TenAlloc_t> AppAnalysisCPU::query_tensor_ranges_cpu(uint64_t ptr) {
+    for (auto ten : active_tensors) {
+        if (ten.second->addr <= ptr && ten.second->addr + ten.second->size > ptr) {
+            return ten.second;
+        }
+    }
+    assert(false);
+    return nullptr;
+}
+
+
 void AppAnalysisCPU::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
     size_t tensor_working_set_size = 0;
     for (auto ten : touched_tensors) {
@@ -198,12 +220,12 @@ void AppAnalysisCPU::gpu_data_analysis(void* data, uint64_t size) {
         MemoryAccess access = accesses_buffer[i];
         for (uint32_t j = 0; j < GPU_WARP_SIZE; j++) {
             if (access.addresses[j] != 0) {
-                auto tensor_it = active_tensors.find(access.addresses[j]);
-                auto mem_it = active_memories.find(access.addresses[j]);
-                if (tensor_it != active_tensors.end() && mem_it != active_memories.end()) {
-                    touched_tensors.insert(tensor_it->second);
-                    touched_memories.insert(mem_it->second);
-                    break;
+                auto tensor = query_tensor_ranges_cpu(access.addresses[j]);
+                auto mem = query_memory_ranges_cpu(access.addresses[j]);
+                if (tensor != nullptr && mem != nullptr) {
+                    touched_tensors.insert(tensor);
+                    touched_memories.insert(mem);
+                    // break;
                 }
             }
         }
