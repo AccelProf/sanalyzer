@@ -1,4 +1,4 @@
-#include "tools/app_analysis_cpu.h"
+#include "tools/app_analysis_nvbit.h"
 #include "utils/helper.h"
 #include "utils/hash.h"
 #include "gpu_patch.h"
@@ -28,16 +28,16 @@ inline std::string vector2str(std::vector<std::string> &vec, int skip_first = 0,
 }
 
 
-AppAnalysisCPU::AppAnalysisCPU() : Tool(APP_ANALYSIS_CPU) {
+AppAnalysisNVBIT::AppAnalysisNVBIT() : Tool(APP_ANALYSIS_NVBIT) {
     init();
 
 }
 
 
-AppAnalysisCPU::~AppAnalysisCPU() {
+AppAnalysisNVBIT::~AppAnalysisNVBIT() {
 }
 
-void AppAnalysisCPU::init() {
+void AppAnalysisNVBIT::init() {
     const char* env_name = std::getenv("ACCEL_PROF_HOME");
     std::string lib_path;
     if (env_name) {
@@ -48,7 +48,7 @@ void AppAnalysisCPU::init() {
 }
 
 
-void AppAnalysisCPU::evt_callback(EventPtr_t evt) {
+void AppAnalysisNVBIT::evt_callback(EventPtr_t evt) {
     switch (evt->evt_type) {
         case EventType_KERNEL_LAUNCH:
             kernel_start_callback(std::dynamic_pointer_cast<KernelLauch_t>(evt));
@@ -86,7 +86,7 @@ void AppAnalysisCPU::evt_callback(EventPtr_t evt) {
 }
 
 
-void AppAnalysisCPU::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
+void AppAnalysisNVBIT::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
     kernel_id++;
     KernelStats stats;
     stats.kernel_launch = kernel;
@@ -98,7 +98,7 @@ void AppAnalysisCPU::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel
 }
 
 
-std::shared_ptr<MemAlloc_t> AppAnalysisCPU::query_memory_ranges_cpu(uint64_t ptr) {
+std::shared_ptr<MemAlloc_t> AppAnalysisNVBIT::query_memory_ranges_cpu(uint64_t ptr) {
     for (auto mem : active_memories) {
         if (mem.second->addr <= ptr && mem.second->addr + mem.second->size >= ptr) {
             return mem.second;
@@ -109,7 +109,7 @@ std::shared_ptr<MemAlloc_t> AppAnalysisCPU::query_memory_ranges_cpu(uint64_t ptr
 }
 
 
-std::shared_ptr<TenAlloc_t> AppAnalysisCPU::query_tensor_ranges_cpu(uint64_t ptr) {
+std::shared_ptr<TenAlloc_t> AppAnalysisNVBIT::query_tensor_ranges_cpu(uint64_t ptr) {
     for (auto ten : active_tensors) {
         if (ten.second->addr <= ptr && ten.second->addr + ten.second->size > ptr) {
             return ten.second;
@@ -120,7 +120,7 @@ std::shared_ptr<TenAlloc_t> AppAnalysisCPU::query_tensor_ranges_cpu(uint64_t ptr
 }
 
 
-void AppAnalysisCPU::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
+void AppAnalysisNVBIT::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
     size_t tensor_working_set_size = 0;
     for (auto ten : touched_tensors) {
         tensor_working_set_size += ten->size;
@@ -141,7 +141,7 @@ void AppAnalysisCPU::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
 }
 
 
-void AppAnalysisCPU::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
+void AppAnalysisNVBIT::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
     mem_stats.alloc_count++;
     mem_stats.alloc_size += mem->size;
     mem_stats.max_size = std::max(mem_stats.max_size, mem_stats.alloc_size);
@@ -151,7 +151,7 @@ void AppAnalysisCPU::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
 }
 
 
-void AppAnalysisCPU::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
+void AppAnalysisNVBIT::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
     mem_stats.free_count++;
     mem_stats.free_size += mem->size;
     mem_stats.alloc_size -= mem->size;
@@ -165,19 +165,19 @@ void AppAnalysisCPU::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
 
 
 
-void AppAnalysisCPU::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
+void AppAnalysisNVBIT::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
 
     _timer.increment(true);
 }
 
 
-void AppAnalysisCPU::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
+void AppAnalysisNVBIT::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
 
     _timer.increment(true);
 }
 
 
-void AppAnalysisCPU::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
+void AppAnalysisNVBIT::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
     ten_stats.alloc_count++;
     ten_stats.alloc_size += ten->size;
     ten_stats.max_size = std::max(ten_stats.max_size, ten_stats.alloc_size);
@@ -188,7 +188,7 @@ void AppAnalysisCPU::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
 }
 
 
-void AppAnalysisCPU::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
+void AppAnalysisNVBIT::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
     ten_stats.free_count++;
     ten_stats.free_size += -ten->size;
     ten_stats.alloc_size -= -ten->size;
@@ -201,18 +201,18 @@ void AppAnalysisCPU::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
 }
 
 
-void AppAnalysisCPU::op_start_callback(std::shared_ptr<OpStart_t> op) {
+void AppAnalysisNVBIT::op_start_callback(std::shared_ptr<OpStart_t> op) {
 
     _timer.increment(true);
 }
 
 
-void AppAnalysisCPU::op_end_callback(std::shared_ptr<OpEnd_t> op) {
+void AppAnalysisNVBIT::op_end_callback(std::shared_ptr<OpEnd_t> op) {
 
     _timer.increment(true);
 }
 
-void AppAnalysisCPU::gpu_data_analysis(void* data, uint64_t size) {
+void AppAnalysisNVBIT::gpu_data_analysis(void* data, uint64_t size) {
     MemoryAccess* accesses_buffer = (MemoryAccess*)data;
     for (uint32_t i = 0; i < size; i++) {
         MemoryAccess access = accesses_buffer[i];
@@ -231,14 +231,14 @@ void AppAnalysisCPU::gpu_data_analysis(void* data, uint64_t size) {
 }
 
 
-void AppAnalysisCPU::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
+void AppAnalysisNVBIT::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
 }
 
-void AppAnalysisCPU::query_tensors(void* ranges, uint32_t limit, uint32_t* count) {
+void AppAnalysisNVBIT::query_tensors(void* ranges, uint32_t limit, uint32_t* count) {
 }
 
 
-void AppAnalysisCPU::flush() {
+void AppAnalysisNVBIT::flush() {
     const char* env_filename = std::getenv("YOSEMITE_APP_NAME");
     std::string filename = "output.log";
     if (env_filename) {

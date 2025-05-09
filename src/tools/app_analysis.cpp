@@ -14,8 +14,6 @@
 
 using namespace yosemite;
 
-#define SANITIZER_UVM_MEMORY_FLAG 0x6
-#define LARGE_TENSOR_THRESHOLD 1048576
 
 inline std::string vector2str(std::vector<std::string> &vec, int skip_first = 0, int skip_last = 0) {
     if (skip_first + skip_last > vec.size()) {

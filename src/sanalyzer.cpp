@@ -9,6 +9,8 @@
 #include "tools/uvm_advisor.h"
 #include "tools/app_analysis.h"
 #include "tools/app_analysis_cpu.h"
+#include "tools/app_analysis_nvbit.h"
+
 #include <memory>
 #include <map>
 #include <iostream>
@@ -23,6 +25,23 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
     if (!tool_name) {
         fprintf(stdout, "No tool name specified.\n");
         return YOSEMITE_NOT_IMPLEMENTED;
+    }
+
+    // nvbit mode
+    const char* yosemite_device_name = std::getenv("YOSEMITE_DEVICE");
+    if (std::string(yosemite_device_name) == "nvbit") {
+        if (std::string(tool_name) == "app_analysis") {
+            tool = APP_ANALYSIS_NVBIT;
+            _tools.emplace(APP_ANALYSIS_NVBIT, std::make_shared<AppAnalysisNVBIT>());
+        } else {
+            fprintf(stderr, "Unsupported tool in nvbit mode, %s.\n", tool_name);
+            fflush(stderr);
+            return YOSEMITE_NOT_IMPLEMENTED;
+        }
+
+        fprintf(stdout, "Enabling %s tool in nvbit mode.\n", tool_name);
+        fflush(stdout);
+        return YOSEMITE_SUCCESS;
     }
 
     if (std::string(tool_name) == "code_check") {
@@ -47,7 +66,8 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
         tool = APP_ANALYSIS_CPU;
         _tools.emplace(APP_ANALYSIS_CPU, std::make_shared<AppAnalysisCPU>());
     } else {
-        fprintf(stdout, "Tool not found.\n");
+        fprintf(stderr, "Tool not found.\n");
+        fflush(stderr);
         return YOSEMITE_NOT_IMPLEMENTED;
     }
 
@@ -147,7 +167,7 @@ YosemiteResult_t yosemite_gpu_data_analysis(void* data, uint64_t size) {
 }
 
 
-YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
+YosemiteResult_t yosemite_init(AccelProfOptions_t& options) {
     AnalysisTool_t tool;
     YosemiteResult_t res = yosemite_tool_enable(tool);
     if (res != YOSEMITE_SUCCESS) {
@@ -174,6 +194,8 @@ YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
     } else if (tool == APP_ANALYSIS_CPU) {
         options.patch_name = GPU_PATCH_APP_ANALYSIS_CPU;
         options.patch_file = "gpu_patch_app_analysis_cpu.fatbin";
+    } else if (tool == APP_ANALYSIS_NVBIT) {
+        options.patch_name = GPU_PATCH_APP_ANALYSIS_NVBIT;
     }
 
     // enable torch profiler?
