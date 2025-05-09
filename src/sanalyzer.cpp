@@ -8,6 +8,7 @@
 #include "tools/hot_analysis.h"
 #include "tools/uvm_advisor.h"
 #include "tools/app_analysis.h"
+#include "tools/app_analysis_cpu.h"
 #include <memory>
 #include <map>
 #include <iostream>
@@ -42,6 +43,9 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
     } else if (std::string(tool_name) == "app_analysis") {
         tool = APP_ANALYSIS;
         _tools.emplace(APP_ANALYSIS, std::make_shared<AppAnalysis>());
+    } else if (std::string(tool_name) == "app_analysis_cpu") {
+        tool = APP_ANALYSIS_CPU;
+        _tools.emplace(APP_ANALYSIS_CPU, std::make_shared<AppAnalysisCPU>());
     } else {
         fprintf(stdout, "Tool not found.\n");
         return YOSEMITE_NOT_IMPLEMENTED;
@@ -167,6 +171,9 @@ YosemiteResult_t yosemite_init(SanitizerOptions_t& options) {
     } else if (tool == APP_ANALYSIS) {
         options.patch_name = GPU_PATCH_APP_ANALYSIS;
         options.patch_file = "gpu_patch_app_analysis.fatbin";
+    } else if (tool == APP_ANALYSIS_CPU) {
+        options.patch_name = GPU_PATCH_APP_ANALYSIS_CPU;
+        options.patch_file = "gpu_patch_app_analysis_cpu.fatbin";
     }
 
     // enable torch profiler?
