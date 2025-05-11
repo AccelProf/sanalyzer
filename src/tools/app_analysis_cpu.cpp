@@ -93,7 +93,6 @@ void AppAnalysisCPU::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel
     stats.memory_footprint_size = mem_stats.alloc_size;
     kernel_stats.emplace(kernel_id, stats);
 
-    kernel_id++;
     _timer.increment(true);
 }
 
@@ -137,6 +136,7 @@ void AppAnalysisCPU::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
     touched_tensors.clear();
     touched_memories.clear();
 
+    kernel_id++;
     _timer.increment(true);
 }
 
