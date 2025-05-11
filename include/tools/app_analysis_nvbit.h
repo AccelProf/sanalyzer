@@ -54,9 +54,11 @@ private :
 
     void op_end_callback(std::shared_ptr<OpEnd_t> op);
 
-    std::shared_ptr<MemAlloc_t> query_memory_ranges_cpu(uint64_t ptr);
+    std::shared_ptr<MemAlloc_t> query_memory_ranges_cpu(uint64_t ptr, uint64_t grid_launch_id);
 
-    std::shared_ptr<TenAlloc_t> query_tensor_ranges_cpu(uint64_t ptr);
+    std::shared_ptr<TenAlloc_t> query_tensor_ranges_cpu(uint64_t ptr, uint64_t grid_launch_id);
+
+    void kernel_grid_launch_id_transition();
 
 /*
 ********************************* variables *********************************
@@ -64,11 +66,16 @@ private :
 
     Timer_t _timer;
 
-    std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
+    using active_mem_map = std::map<DevPtr, std::shared_ptr<MemAlloc_t>>;
+    active_mem_map active_memories;
     std::set<std::shared_ptr<MemAlloc_t>> touched_memories;
+    std::map<uint64_t, active_mem_map> active_memories_per_kernel_snapshot;
 
-    std::map<DevPtr, std::shared_ptr<TenAlloc_t>> active_tensors;
+    using active_ten_map = std::map<DevPtr, std::shared_ptr<TenAlloc_t>>;
+    active_ten_map active_tensors;
     std::set<std::shared_ptr<TenAlloc_t>> touched_tensors;
+    std::map<uint64_t, active_ten_map> active_tensors_per_kernel_snapshot;
+
     struct KernelStats {
         std::shared_ptr<KernelLauch_t> kernel_launch;
         size_t tensor_working_set_size = 0;
@@ -77,6 +84,9 @@ private :
         size_t memory_footprint_size = 0;
     };
     uint64_t kernel_id = 0;
+    uint64_t current_grid_launch_id = 0;
+    uint64_t previous_grid_launch_id = 0;
+
     std::map<uint64_t, KernelStats> kernel_stats;
 
     struct MemStats {

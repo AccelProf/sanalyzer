@@ -87,13 +87,13 @@ void AppAnalysis::evt_callback(EventPtr_t evt) {
 
 
 void AppAnalysis::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
-    kernel_id++;
     KernelStats stats;
     stats.kernel_launch = kernel;
     stats.tensor_footprint_size = ten_stats.alloc_size;
     stats.memory_footprint_size = mem_stats.alloc_size;
     kernel_stats.emplace(kernel_id, stats);
 
+    kernel_id++;
     _timer.increment(true);
 }
 

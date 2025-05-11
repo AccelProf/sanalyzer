@@ -1,7 +1,7 @@
 #include "tools/app_analysis_nvbit.h"
 #include "utils/helper.h"
 #include "utils/hash.h"
-#include "gpu_patch.h"
+#include "nvbit_common.h"
 #include "cpp_trace.h"
 #include "py_frame.h"
 
@@ -30,7 +30,6 @@ inline std::string vector2str(std::vector<std::string> &vec, int skip_first = 0,
 
 AppAnalysisNVBIT::AppAnalysisNVBIT() : Tool(APP_ANALYSIS_NVBIT) {
     init();
-
 }
 
 
@@ -87,30 +86,34 @@ void AppAnalysisNVBIT::evt_callback(EventPtr_t evt) {
 
 
 void AppAnalysisNVBIT::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
-    kernel_id++;
     KernelStats stats;
     stats.kernel_launch = kernel;
     stats.tensor_footprint_size = ten_stats.alloc_size;
     stats.memory_footprint_size = mem_stats.alloc_size;
     kernel_stats.emplace(kernel_id, stats);
+    active_memories_per_kernel_snapshot[kernel_id] = active_memories;
+    active_tensors_per_kernel_snapshot[kernel_id] = active_tensors;
 
+    kernel_id++;
     _timer.increment(true);
 }
 
 
-std::shared_ptr<MemAlloc_t> AppAnalysisNVBIT::query_memory_ranges_cpu(uint64_t ptr) {
-    for (auto mem : active_memories) {
+std::shared_ptr<MemAlloc_t> AppAnalysisNVBIT::query_memory_ranges_cpu(uint64_t ptr, uint64_t grid_launch_id) {
+    auto active_memories_snapshot = active_memories_per_kernel_snapshot[grid_launch_id];
+    for (auto mem : active_memories_snapshot) {
         if (mem.second->addr <= ptr && mem.second->addr + mem.second->size >= ptr) {
             return mem.second;
         }
     }
-    assert(false);
+    // assert(false);
     return nullptr;
 }
 
 
-std::shared_ptr<TenAlloc_t> AppAnalysisNVBIT::query_tensor_ranges_cpu(uint64_t ptr) {
-    for (auto ten : active_tensors) {
+std::shared_ptr<TenAlloc_t> AppAnalysisNVBIT::query_tensor_ranges_cpu(uint64_t ptr, uint64_t grid_launch_id) {
+    auto active_tensors_snapshot = active_tensors_per_kernel_snapshot[grid_launch_id];
+    for (auto ten : active_tensors_snapshot) {
         if (ten.second->addr <= ptr && ten.second->addr + ten.second->size > ptr) {
             return ten.second;
         }
@@ -120,22 +123,26 @@ std::shared_ptr<TenAlloc_t> AppAnalysisNVBIT::query_tensor_ranges_cpu(uint64_t p
 }
 
 
-void AppAnalysisNVBIT::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
-    size_t tensor_working_set_size = 0;
-    for (auto ten : touched_tensors) {
-        tensor_working_set_size += ten->size;
-    }
+void AppAnalysisNVBIT::kernel_grid_launch_id_transition() {
+    // size_t tensor_working_set_size = 0;
+    // for (auto ten : touched_tensors) {
+    //     tensor_working_set_size += ten->size;
+    // }
 
     size_t memory_working_set_size = 0;
     for (auto mem : touched_memories) {
         memory_working_set_size += mem->size;
     }
 
-    kernel_stats[kernel_id].tensor_working_set_size = tensor_working_set_size;
-    kernel_stats[kernel_id].memory_working_set_size = memory_working_set_size;
+    // kernel_stats[kernel_id].tensor_working_set_size = tensor_working_set_size;
+    kernel_stats[previous_grid_launch_id].memory_working_set_size = memory_working_set_size;
 
-    touched_tensors.clear();
+    // touched_tensors.clear();
     touched_memories.clear();
+}
+
+
+void AppAnalysisNVBIT::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
 
     _timer.increment(true);
 }
@@ -213,18 +220,19 @@ void AppAnalysisNVBIT::op_end_callback(std::shared_ptr<OpEnd_t> op) {
 }
 
 void AppAnalysisNVBIT::gpu_data_analysis(void* data, uint64_t size) {
-    MemoryAccess* accesses_buffer = (MemoryAccess*)data;
-    for (uint32_t i = 0; i < size; i++) {
-        MemoryAccess access = accesses_buffer[i];
-        for (uint32_t j = 0; j < GPU_WARP_SIZE; j++) {
-            if (access.addresses[j] != 0) {
-                auto tensor = query_tensor_ranges_cpu(access.addresses[j]);
-                auto mem = query_memory_ranges_cpu(access.addresses[j]);
-                if (tensor != nullptr && mem != nullptr) {
-                    touched_tensors.insert(tensor);
-                    touched_memories.insert(mem);
-                    // break;
-                }
+    nvbit_mem_access_t* ma = (nvbit_mem_access_t*)data;
+
+    current_grid_launch_id = ma->grid_launch_id;
+    if (current_grid_launch_id != previous_grid_launch_id) {
+        kernel_grid_launch_id_transition();
+        previous_grid_launch_id = current_grid_launch_id;
+    }
+
+    for (int i = 0; i < GPU_WARP_SIZE_NVBIT; i++) {
+        if (ma->addrs[i] != 0) {
+            auto memory = query_memory_ranges_cpu(ma->addrs[i], current_grid_launch_id);
+            if (memory != nullptr) {
+                touched_memories.insert(memory);
             }
         }
     }

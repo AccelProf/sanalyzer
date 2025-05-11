@@ -20,6 +20,7 @@ LINK_LIBS ?=
 
 INCLUDES += -I$(INC_DIR)
 INCLUDES += -I$(SANITIZER_TOOL_DIR)/gpu_src/include
+INCLUDES += -I$(NV_NVBIT_DIR)/include
 
 INCLUDES += -I$(CPP_TRACE_DIR)/include
 LDFLAGS += -L$(CPP_TRACE_DIR)/lib -Wl,-rpath=$(CPP_TRACE_DIR)/lib

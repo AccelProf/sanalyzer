@@ -87,13 +87,13 @@ void AppAnalysisCPU::evt_callback(EventPtr_t evt) {
 
 
 void AppAnalysisCPU::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
-    kernel_id++;
     KernelStats stats;
     stats.kernel_launch = kernel;
     stats.tensor_footprint_size = ten_stats.alloc_size;
     stats.memory_footprint_size = mem_stats.alloc_size;
     kernel_stats.emplace(kernel_id, stats);
 
+    kernel_id++;
     _timer.increment(true);
 }
 
@@ -219,10 +219,10 @@ void AppAnalysisCPU::gpu_data_analysis(void* data, uint64_t size) {
         for (uint32_t j = 0; j < GPU_WARP_SIZE; j++) {
             if (access.addresses[j] != 0) {
                 auto tensor = query_tensor_ranges_cpu(access.addresses[j]);
-                auto mem = query_memory_ranges_cpu(access.addresses[j]);
-                if (tensor != nullptr && mem != nullptr) {
+                auto memory = query_memory_ranges_cpu(access.addresses[j]);
+                if (tensor != nullptr && memory != nullptr) {
                     touched_tensors.insert(tensor);
-                    touched_memories.insert(mem);
+                    touched_memories.insert(memory);
                     // break;
                 }
             }
