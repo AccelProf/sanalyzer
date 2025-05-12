@@ -10,6 +10,8 @@
 #include <fstream>
 #include <string>
 #include <iostream>
+#include <unistd.h>
+
 
 
 using namespace yosemite;
@@ -44,6 +46,11 @@ void AppAnalysisCPU::init() {
         lib_path = std::string(env_name) + "/lib/libcompute_sanitizer.so";
     }
     init_backtrace(lib_path.c_str());
+
+    const char* env_filename = std::getenv("MAX_NUM_KERNEL_MONITORED");
+    if (env_filename) {
+        max_num_kernel_monitored = std::stoi(env_filename);
+    }
 
 }
 
@@ -137,6 +144,13 @@ void AppAnalysisCPU::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
     touched_memories.clear();
 
     kernel_id++;
+
+    if (max_num_kernel_monitored != -1 && kernel_id >= max_num_kernel_monitored) {
+        fprintf(stdout, "Max number of kernels monitored reached. Exiting...\n");
+        fflush(stdout);
+        _exit(0);
+    }
+
     _timer.increment(true);
 }
 
@@ -214,10 +228,12 @@ void AppAnalysisCPU::op_end_callback(std::shared_ptr<OpEnd_t> op) {
 
 void AppAnalysisCPU::gpu_data_analysis(void* data, uint64_t size) {
     MemoryAccess* accesses_buffer = (MemoryAccess*)data;
+    uint32_t num_accesses = 0;
     for (uint32_t i = 0; i < size; i++) {
         MemoryAccess access = accesses_buffer[i];
         for (uint32_t j = 0; j < GPU_WARP_SIZE; j++) {
             if (access.addresses[j] != 0) {
+                num_accesses++;
                 auto tensor = query_tensor_ranges_cpu(access.addresses[j]);
                 auto memory = query_memory_ranges_cpu(access.addresses[j]);
                 if (tensor != nullptr && memory != nullptr) {
@@ -228,6 +244,7 @@ void AppAnalysisCPU::gpu_data_analysis(void* data, uint64_t size) {
             }
         }
     }
+    kernel_stats[kernel_id].kernel_launch->access_count += num_accesses;
 }
 
 
