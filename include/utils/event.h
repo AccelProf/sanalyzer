@@ -88,6 +88,7 @@ typedef struct KernelEnd : public Event {
 
     KernelEnd() {
         evt_type = EventType_KERNEL_END;
+        access_count = 0;
     }
 
     KernelEnd(std::string kernel_name)

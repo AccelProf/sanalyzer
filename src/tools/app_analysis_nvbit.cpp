@@ -136,7 +136,8 @@ void AppAnalysisNVBIT::kernel_grid_launch_id_transition() {
 
     // kernel_stats[kernel_id].tensor_working_set_size = tensor_working_set_size;
     kernel_stats[previous_grid_launch_id].memory_working_set_size = memory_working_set_size;
-
+    kernel_stats[previous_grid_launch_id].kernel_launch->access_count = current_kernel_access_count;
+    current_kernel_access_count = 0;
     // touched_tensors.clear();
     touched_memories.clear();
 }
@@ -230,6 +231,7 @@ void AppAnalysisNVBIT::gpu_data_analysis(void* data, uint64_t size) {
 
     for (int i = 0; i < GPU_WARP_SIZE_NVBIT; i++) {
         if (ma->addrs[i] != 0) {
+            current_kernel_access_count++;
             auto memory = query_memory_ranges_cpu(ma->addrs[i], current_grid_launch_id);
             if (memory != nullptr) {
                 touched_memories.insert(memory);
