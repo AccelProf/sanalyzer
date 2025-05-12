@@ -107,9 +107,6 @@ private :
     };
     TenStats ten_stats;
 
-    // for overhead comparison
-    int max_num_kernel_monitored = -1;
-
 };  
 
 }   // yosemite

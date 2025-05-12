@@ -97,6 +97,7 @@ private :
     };
     TenStats ten_stats;
 
+    int max_num_kernel_monitored = -1;
 };  
 
 }   // yosemite
