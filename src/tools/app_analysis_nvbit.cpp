@@ -118,27 +118,41 @@ std::shared_ptr<TenAlloc_t> AppAnalysisNVBIT::query_tensor_ranges_cpu(uint64_t p
             return ten.second;
         }
     }
-    assert(false);
+    // assert(false);
     return nullptr;
 }
 
 
 void AppAnalysisNVBIT::kernel_grid_launch_id_transition() {
-    // size_t tensor_working_set_size = 0;
-    // for (auto ten : touched_tensors) {
-    //     tensor_working_set_size += ten->size;
-    // }
+    size_t tensor_working_set_size = 0;
+    for (auto ten : touched_tensors) {
+        tensor_working_set_size += ten->size;
+    }
 
     size_t memory_working_set_size = 0;
     for (auto mem : touched_memories) {
         memory_working_set_size += mem->size;
     }
 
-    // kernel_stats[kernel_id].tensor_working_set_size = tensor_working_set_size;
+    size_t memory_footprint_size = 0;
+    auto active_memories_snapshot = active_memories_per_kernel_snapshot[previous_grid_launch_id];
+    for (auto mem : active_memories_snapshot) {
+        memory_footprint_size += mem.second->size;
+    }
+
+    size_t tensor_footprint_size = 0;
+    auto active_tensors_snapshot = active_tensors_per_kernel_snapshot[previous_grid_launch_id];
+    for (auto ten : active_tensors_snapshot) {
+        tensor_footprint_size += ten.second->size;
+    }
+
+    kernel_stats[previous_grid_launch_id].tensor_working_set_size = tensor_working_set_size;
     kernel_stats[previous_grid_launch_id].memory_working_set_size = memory_working_set_size;
+    kernel_stats[previous_grid_launch_id].memory_footprint_size = memory_footprint_size;
+    kernel_stats[previous_grid_launch_id].tensor_footprint_size = tensor_footprint_size;
     kernel_stats[previous_grid_launch_id].kernel_launch->access_count = current_kernel_access_count;
     current_kernel_access_count = 0;
-    // touched_tensors.clear();
+    touched_tensors.clear();
     touched_memories.clear();
 }
 
@@ -235,6 +249,10 @@ void AppAnalysisNVBIT::gpu_data_analysis(void* data, uint64_t size) {
             auto memory = query_memory_ranges_cpu(ma->addrs[i], current_grid_launch_id);
             if (memory != nullptr) {
                 touched_memories.insert(memory);
+            }
+            auto tensor = query_tensor_ranges_cpu(ma->addrs[i], current_grid_launch_id);
+            if (tensor != nullptr) {
+                touched_tensors.insert(tensor);
             }
         }
     }
