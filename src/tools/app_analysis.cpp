@@ -45,6 +45,11 @@ void AppAnalysis::init() {
     }
     init_backtrace(lib_path.c_str());
 
+    const char* env_filename = std::getenv("MAX_NUM_KERNEL_MONITORED");
+    if (env_filename) {
+        max_num_kernel_monitored = std::stoi(env_filename);
+    }
+
 }
 
 
@@ -99,6 +104,11 @@ void AppAnalysis::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
 
 void AppAnalysis::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
     kernel_id++;
+    if (max_num_kernel_monitored != -1 && kernel_id >= max_num_kernel_monitored) {
+        fprintf(stdout, "Max number of kernels monitored reached. Exiting...\n");
+        fflush(stdout);
+        exit(0);
+    }
     _timer.increment(true);
 }
 
