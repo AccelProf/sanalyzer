@@ -69,6 +69,7 @@ private :
 
     std::map<DevPtr, std::shared_ptr<TenAlloc_t>> active_tensors;
     std::set<std::shared_ptr<TenAlloc_t>> touched_tensors;
+
     struct KernelStats {
         std::shared_ptr<KernelLauch_t> kernel_launch;
         size_t tensor_working_set_size = 0;

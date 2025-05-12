@@ -86,6 +86,7 @@ private :
     uint64_t kernel_id = 0;
     uint64_t current_grid_launch_id = 0;
     uint64_t previous_grid_launch_id = 0;
+    uint64_t current_kernel_access_count = 0;
 
     std::map<uint64_t, KernelStats> kernel_stats;
 
