@@ -30,6 +30,8 @@ typedef struct AccelProfOptions {
     std::string patch_file;
     bool sanitizer_callback_enabled = true;
     bool torch_prof_enabled = false;
+    uint64_t grid_launch_id = 0;
+    uint32_t sample_rate = 1;
 
     AccelProfOptions() = default;
     ~AccelProfOptions() = default;

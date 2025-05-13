@@ -205,6 +205,13 @@ YosemiteResult_t yosemite_init(AccelProfOptions_t& options) {
         yosemite_torch_prof_enable();
     }
 
+    // set sample rate
+    const char* sample_rate = std::getenv("YOSEMITE_ENV_SAMPLE_RATE");
+    if (sample_rate) {
+        options.sample_rate = std::stoi(sample_rate);
+        fprintf(stdout, "Setting sample rate to %d.\n", options.sample_rate);
+    }
+
     fprintf(stdout, "================================================================================\n");
     fflush(stdout);
 

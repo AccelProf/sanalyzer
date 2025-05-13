@@ -50,6 +50,10 @@ void AppAnalysis::init() {
         max_num_kernel_monitored = std::stoi(env_filename);
     }
 
+    const char* env_sample_rate = std::getenv("ACCEL_PROF_ENV_SAMPLE_RATE");
+    if (env_sample_rate) {
+        setenv("YOSEMITE_ENV_SAMPLE_RATE", env_sample_rate, 1);
+    }
 }
 
 
