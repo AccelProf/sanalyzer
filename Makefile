@@ -7,7 +7,7 @@ OBJ_DIR := obj
 SRC_DIR := src
 INC_DIR := include
 LIB_DIR := lib
-PREFIX := sanalyzer
+PREFIX := $(INSTALL_DIR)
 
 LIB := $(LIB_DIR)/lib$(PROJECT).so
 
@@ -69,6 +69,6 @@ clean:
 .PHONY: install
 install: all
 	mkdir -p $(PREFIX)/lib
-	# mkdir -p $(PREFIX)/include
+	mkdir -p $(PREFIX)/include
 	cp -r $(LIB) $(PREFIX)/lib
-	# cp -r $(INC_DIR)/$(PROJECT).h $(PREFIX)/include
+	cp -r $(INC_DIR)/$(PROJECT).h $(PREFIX)/include

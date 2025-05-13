@@ -213,8 +213,8 @@ typedef struct TenFree : public Event {
 
 typedef struct OpStart : public Event {
     uint64_t end_time;
-    std::uint32_t pending_kernels;
-    std::uint32_t pending_ops;
+    uint64_t pending_kernels;
+    uint64_t pending_ops;
     std::string op_name;
     void* ctx;
     uint64_t key;   // for UVM Advisor
