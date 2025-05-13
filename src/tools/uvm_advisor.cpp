@@ -340,12 +340,12 @@ void UVMAdvisor::flush() {
             fprintf(out_fp, "   Kernel: %.30s, timestamp: %lu\n", kernel->kernel_name.c_str(), kernel->timestamp);
             fprintf(out_fp, "       MemAlloc (%lu): ", mem_alloc_vec.size());
             for (auto& mem : mem_alloc_vec) {
-                fprintf(out_fp, "(%p, %lu) ", mem->addr, mem->size);
+                fprintf(out_fp, "(%ld, %lu) ", mem->addr, mem->size);
             }
             fprintf(out_fp, "\n");
             fprintf(out_fp, "       TenAlloc (%lu): ", ten_alloc_vec.size());
             for (auto& ten : ten_alloc_vec) {
-                fprintf(out_fp, "(%p, %lu) ", ten->addr, ten->size);
+                fprintf(out_fp, "(%ld, %lu) ", ten->addr, ten->size);
             }
             fprintf(out_fp, "\n");
         }
