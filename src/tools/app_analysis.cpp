@@ -193,14 +193,14 @@ void AppAnalysis::gpu_data_analysis(void* data, uint64_t size) {
 
     uint64_t mem_size = 0;
     for (uint32_t i = 0; i < states->size; i++) {
-        if (states->touch[i] == 1) {
+        if (states->touch[i] != 0) {
             mem_size += states->start_end[i].end - states->start_end[i].start;
         }
     }
 
     uint64_t ten_size = 0;
     for (uint32_t i = 0; i < tensor_states->size; i++) {
-        if (tensor_states->touch[i] == 1) {
+        if (tensor_states->touch[i] != 0) {
             ten_size += tensor_states->start_end[i].end - tensor_states->start_end[i].start;
         }
     }
