@@ -50,6 +50,7 @@ void AppAnalysisCPU::init() {
     const char* env_filename = std::getenv("MAX_NUM_KERNEL_MONITORED");
     if (env_filename) {
         max_num_kernel_monitored = std::stoi(env_filename);
+        printf("Set max number of kernels monitored to %d\n", max_num_kernel_monitored);
     }
 
     const char* env_sample_rate = std::getenv("ACCEL_PROF_ENV_SAMPLE_RATE");
