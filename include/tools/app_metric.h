@@ -60,6 +60,7 @@ private:
     } Stats_t;
 
     Stats_t _stats;
+    uint64_t _kernel_id = 0;
 
     Timer_t _timer;
 
