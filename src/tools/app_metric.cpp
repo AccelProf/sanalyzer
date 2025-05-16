@@ -144,6 +144,7 @@ void AppMetrics::flush() {
         _stats.tot_mem_accesses += event.second->access_count;
         if (_stats.max_mem_accesses_per_kernel < event.second->access_count) {
             _stats.max_mem_accesses_kernel = event.second->kernel_name;
+            _stats.max_mem_access_kernel_id = event.first;
             _stats.max_mem_accesses_per_kernel = event.second->access_count;
         }
 
@@ -193,7 +194,7 @@ void AppMetrics::flush() {
         << "B (" << format_size(_stats.avg_obj_size_per_kernel) << ")" << std::endl;
     out << "------------------------------" << std::endl;
     out << "Maximum memory accesses kernel: " << _stats.max_mem_accesses_kernel
-        << std::endl;
+        << " (Kernel ID: " << _stats.max_mem_access_kernel_id << ")" << std::endl;
     out << "Maximum memory accesses per kernel: " << _stats.max_mem_accesses_per_kernel
         << " (" << format_number(_stats.max_mem_accesses_per_kernel) << ")" << std::endl;
     out << "Average memory accesses per kernel: " << _stats.avg_mem_accesses

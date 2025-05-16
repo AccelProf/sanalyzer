@@ -46,6 +46,7 @@ private:
         uint64_t avg_mem_accesses;
         uint64_t tot_mem_accesses;
         std::string max_mem_accesses_kernel;
+        uint64_t max_mem_access_kernel_id;
         uint64_t max_objs_per_kernel;
         uint64_t avg_objs_per_kernel;
         uint64_t tot_objs_per_kernel;
