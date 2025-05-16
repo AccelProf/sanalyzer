@@ -35,6 +35,7 @@ void AppMetrics::evt_callback(EventPtr_t evt) {
 
 
 void AppMetrics::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
+    kernel->kernel_id = _kernel_id++;
     kernel_events.emplace(_timer.get(), kernel);
     if (kernel_invocations.find(kernel->kernel_name) == kernel_invocations.end()) {
         kernel_invocations.emplace(kernel->kernel_name, 1);
@@ -133,9 +134,8 @@ void AppMetrics::flush() {
     }
     out << std::endl;
 
-    count = 0;
     for (auto event : kernel_events) {
-        out << "Kernel " << count << " ("
+        out << "Kernel " << event.second->kernel_id << " ("
             << "refs=" << event.second->access_count
             << ", objs=" << event.second->touched_objects
             << ", obj_size=" << event.second->touched_objects_size
@@ -144,7 +144,7 @@ void AppMetrics::flush() {
         _stats.tot_mem_accesses += event.second->access_count;
         if (_stats.max_mem_accesses_per_kernel < event.second->access_count) {
             _stats.max_mem_accesses_kernel = event.second->kernel_name;
-            _stats.max_mem_access_kernel_id = event.first;
+            _stats.max_mem_access_kernel_id = event.second->kernel_id;
             _stats.max_mem_accesses_per_kernel = event.second->access_count;
         }
 
@@ -158,7 +158,6 @@ void AppMetrics::flush() {
             _stats.max_obj_size_per_kernel = event.second->touched_objects_size;
         }
 
-        count++;
     }
     out << std::endl;
 
