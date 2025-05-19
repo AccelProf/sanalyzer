@@ -53,6 +53,8 @@ private :
 
     void op_end_callback(std::shared_ptr<OpEnd_t> op);
 
+    bool find_uvm_tensor(uint64_t ptr);
+
 
 /*
 ********************************* variables *********************************

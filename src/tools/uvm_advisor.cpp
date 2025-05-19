@@ -168,11 +168,33 @@ void UVMAdvisor::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
     _timer.increment(true);
 }
 
+bool UVMAdvisor::find_uvm_tensor(uint64_t ptr) {
+    for (auto mem : active_memories) {
+        if (ptr >= mem.first && ptr < mem.first + mem.second->size) {
+            return true;
+        }
+    }
+    return false;
+}
+
 
 void UVMAdvisor::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
     if (ten->size <= LARGE_TENSOR_THRESHOLD) {
         return;
     }
+    if (!find_uvm_tensor(ten->addr)) {
+        return;
+    }
+
+    if (ten->size == 8519680) {
+        auto backtraces = get_backtrace();
+        auto py_frames = get_pyframes();
+        auto bt_str = vector2str(backtraces);
+        auto pf_str = vector2str(py_frames);
+        std::cout << bt_str << std::endl;
+        std::cout << pf_str << std::endl;
+    }
+
     opt_keys.ten_id ++;
     ten->key = opt_keys.ten_id;
     ten_stats.alloc_count++;
@@ -188,6 +210,10 @@ void UVMAdvisor::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
 
 void UVMAdvisor::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
     if (-ten->size <= LARGE_TENSOR_THRESHOLD) {
+        return;
+    }
+
+    if (active_tensors.find(ten->addr) == active_tensors.end()) {
         return;
     }
 
