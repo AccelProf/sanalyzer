@@ -104,13 +104,11 @@ private :
 
     typedef struct {
         uint64_t op_id = 0;
-        uint64_t last_start_op_id = 0;
         uint64_t ten_id = 0;
         uint64_t mem_id = 0;
         uint64_t kernel_id = 0;
     } opt_keys_t;
     opt_keys_t opt_keys;
-    std::unordered_map<uint64_t, uint64_t> op_prefetch_timing;
 };  
 
 }   // yosemite
