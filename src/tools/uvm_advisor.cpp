@@ -32,14 +32,10 @@ inline std::string vector2str(std::vector<std::string> &vec, int skip_first = 0,
 
 UVMAdvisor::UVMAdvisor() : Tool(UVM_ADVISOR) {
     init();
-
-    out_fp = fopen("uvm_advisor.log", "w");
-    // out_fp = stdout;
 }
 
 
 UVMAdvisor::~UVMAdvisor() {
-    fclose(out_fp);
 }
 
 void UVMAdvisor::init() {
@@ -140,31 +136,11 @@ void UVMAdvisor::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
 
 
 void UVMAdvisor::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
-    // auto backtraces = get_backtrace();
-    // auto py_frames = get_pyframes();
-    // auto bt_str = vector2str(backtraces);
-    // auto pf_str = vector2str(py_frames);
-
-    // std::cout << "Backtrace hash: " << sha256(bt_str) << std::endl;
-    // std::cout << bt_str << std::endl;
-    // std::cout << "Python frame hash: " << sha256(pf_str) << std::endl;
-    // std::cout << pf_str << std::endl;
-
-    MemcpyDirection_t direction = (MemcpyDirection_t)mem->direction;
-    if (cpy_stats.find(direction) == cpy_stats.end()) {
-        cpy_stats[direction] = CpyStats{0, 0};
-    }
-    cpy_stats[direction].count++;
-    cpy_stats[direction].size += mem->size;
-
     _timer.increment(true);
 }
 
 
 void UVMAdvisor::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
-    set_stats.count++;
-    set_stats.size += mem->size;
-
     _timer.increment(true);
 }
 
@@ -186,14 +162,6 @@ void UVMAdvisor::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
         return;
     }
 
-    if (ten->size == 8519680) {
-        auto backtraces = get_backtrace();
-        auto py_frames = get_pyframes();
-        auto bt_str = vector2str(backtraces);
-        auto pf_str = vector2str(py_frames);
-        std::cout << bt_str << std::endl;
-        std::cout << pf_str << std::endl;
-    }
 
     opt_keys.ten_id ++;
     ten->key = opt_keys.ten_id;
@@ -235,18 +203,6 @@ void UVMAdvisor::op_start_callback(std::shared_ptr<OpStart_t> op) {
     op_stack.push(op);
     op_stats.count++;
     op_stats.pending_ops++;
-
-    // if (op->op_name == "aten::matmul") {
-    //     auto backtraces = get_backtrace();
-    //     auto py_frames = get_pyframes();
-    //     auto bt_str = vector2str(backtraces);
-    //     auto pf_str = vector2str(py_frames);
-
-    //     std::cout << "Backtrace hash: " << sha256(bt_str) << std::endl;
-    //     std::cout << bt_str << std::endl;
-    //     std::cout << "Python frame hash: " << sha256(pf_str) << std::endl;
-    //     std::cout << pf_str << std::endl;
-    // }
 
     _timer.increment(true);
 }
@@ -307,7 +263,7 @@ void UVMAdvisor::query_ranges(void* ranges, uint32_t limit, uint32_t* count) {
         _ranges[*count].end = mem.second->addr + mem.second->size;
         (*count)++;
         if (*count >= limit) {
-            fprintf(out_fp, "Warning: query_ranges limit reached\n");
+            fprintf(stdout, "Warning: query_ranges limit reached\n");
             break;
         }
     }
@@ -321,82 +277,64 @@ void UVMAdvisor::query_tensors(void* ranges, uint32_t limit, uint32_t* count) {
         _ranges[*count].end = ten.second->addr + ten.second->size;
         (*count)++;
         if (*count >= limit) {
-            fprintf(out_fp, "Warning: query_tensors limit reached\n");
+            fprintf(stdout, "Warning: query_tensors limit reached\n");
             break;
         }
     }
 }
 
 
+
+void UVMAdvisor::print_callstack() {
+    auto backtraces = get_backtrace();
+    auto py_frames = get_pyframes();
+    auto bt_str = vector2str(backtraces);
+    auto pf_str = vector2str(py_frames);
+    std::cout << bt_str << std::endl;
+    std::cout << pf_str << std::endl;
+}
+
+
 void UVMAdvisor::flush() {
+    FILE* out;
+    std::string file_name = "uvm_advisor_opt.log";
+    out = fopen(file_name.c_str(), "w");
     
-    fprintf(out_fp, "--------------------------------------------------------------------------------\n");
-    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
+    fprintf(out, "--------------------------------------------------------------------------------\n");
+    fprintf(out, "%-12s count: %-10lu, size: %lu (%s)\n", 
             "[MemMalloc]", mem_stats.alloc_count, mem_stats.alloc_size, format_size(mem_stats.alloc_size).c_str());
-    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
+    fprintf(out, "%-12s count: %-10lu, size: %lu (%s)\n", 
             "[MemFree]", mem_stats.free_count, mem_stats.free_size, format_size(mem_stats.free_size).c_str());
-    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
-            "[Memset]", set_stats.count, set_stats.size, format_size(set_stats.size).c_str());
 
-    for (auto& it : cpy_stats) {
-        const char* direction = it.first == MEMCPY_H2H ? "H2H" : 
-                              it.first == MEMCPY_H2D ? "H2D" :
-                              it.first == MEMCPY_D2H ? "D2H" : 
-                              it.first == MEMCPY_D2D ? "D2D" : "N/A";
-        fprintf(out_fp, "[Memcpy-%s] count: %-10lu, size: %lu (%s)\n",
-                direction, it.second.count, it.second.size, format_size(it.second.size).c_str());
-    }
-
-    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
+    fprintf(out, "%-12s count: %-10lu, size: %lu (%s)\n", 
             "[TenMalloc]", ten_stats.alloc_count, ten_stats.alloc_size, format_size(ten_stats.alloc_size).c_str());
-    fprintf(out_fp, "%-12s count: %-10lu, size: %lu (%s)\n", 
+    fprintf(out, "%-12s count: %-10lu, size: %lu (%s)\n", 
             "[TenFree]", ten_stats.free_count, ten_stats.free_size, format_size(ten_stats.free_size).c_str());
-    fprintf(out_fp, "%-12s count: %-10lu\n", "[Op]", op_stats.count);
-    fprintf(out_fp, "%-12s count: %-10lu\n", "[OpGroup]", op_stats.group_count);
-    fprintf(out_fp, "--------------------------------------------------------------------------------\n");
+    fprintf(out, "%-12s count: %-10lu\n", "[Op]", op_stats.count);
+    fprintf(out, "%-12s count: %-10lu\n", "[OpGroup]", op_stats.group_count);
+    fprintf(out, "--------------------------------------------------------------------------------\n");
 
+    fprintf(out, "================================================================================\n");
     for (auto& it : op_tables) {
         auto op = it.second.first;
-        fprintf(out_fp, "Op - %.30s, timestamp: %lu, pending_ops: %lu, pending_kernels: %lu\n", 
-                op->op_name.c_str(), op->timestamp, op->pending_ops, op->pending_kernels);
-        for (auto& kernel_tuple : it.second.second) {
-            auto kernel = std::get<0>(kernel_tuple);
-            auto mem_alloc_vec = std::get<1>(kernel_tuple);
-            auto ten_alloc_vec = std::get<2>(kernel_tuple);
-            fprintf(out_fp, "   Kernel: %.30s, timestamp: %lu\n", kernel->kernel_name.c_str(), kernel->timestamp);
-            fprintf(out_fp, "       MemAlloc (%lu): ", mem_alloc_vec.size());
-            for (auto& mem : mem_alloc_vec) {
-                fprintf(out_fp, "(%ld, %lu) ", mem->addr, mem->size);
-            }
-            fprintf(out_fp, "\n");
-            fprintf(out_fp, "       TenAlloc (%lu): ", ten_alloc_vec.size());
-            for (auto& ten : ten_alloc_vec) {
-                fprintf(out_fp, "(%ld, %lu) ", ten->addr, ten->size);
-            }
-            fprintf(out_fp, "\n");
-        }
-    }
-
-    fprintf(out_fp, "================================================================================\n");
-     for (auto& it : op_tables) {
-        auto op = it.second.first;
-        fprintf(out_fp, "Op - %.30s, op_id: %lu, pending_ops: %lu, pending_kernels: %lu\n", 
+        fprintf(out, "Op - %.30s, op_id: %lu, pending_ops: %lu, pending_kernels: %lu\n", 
                 op->op_name.c_str(), op->key, op->pending_ops, op->pending_kernels);
         for (auto& kernel_tuple : it.second.second) {
             auto kernel = std::get<0>(kernel_tuple);
             auto mem_alloc_vec = std::get<1>(kernel_tuple);
             auto ten_alloc_vec = std::get<2>(kernel_tuple);
-            fprintf(out_fp, "   Kernel: %.30s, kernel_id: %lu\n", kernel->kernel_name.c_str(), kernel->key);
-            fprintf(out_fp, "       MemAlloc (%lu): ", mem_alloc_vec.size());
+            fprintf(out, "   Kernel: %.30s, kernel_id: %lu\n", kernel->kernel_name.c_str(), kernel->key);
+            fprintf(out, "       MemAlloc (%lu): ", mem_alloc_vec.size());
             for (auto& mem : mem_alloc_vec) {
-                fprintf(out_fp, "%lu:(%lu, %lu), ", mem->key, mem->addr, mem->size);
+                fprintf(out, "%lu:(%lu, %lu), ", mem->key, mem->addr, mem->size);
             }
-            fprintf(out_fp, "\n");
-            fprintf(out_fp, "       TenAlloc (%lu): ", ten_alloc_vec.size());
+            fprintf(out, "\n");
+            fprintf(out, "       TenAlloc (%lu): ", ten_alloc_vec.size());
             for (auto& ten : ten_alloc_vec) {
-                fprintf(out_fp, "%lu:(%lu, %lu), ", ten->key, ten->addr, ten->size);
+                fprintf(out, "%lu:(%lu, %lu), ", ten->key, ten->addr, ten->size);
             }
-            fprintf(out_fp, "\n");
+            fprintf(out, "\n");
         }
     }
+    fclose(out);
 }
