@@ -55,11 +55,10 @@ private :
 
     bool find_uvm_tensor(uint64_t ptr);
 
-
+    void print_callstack();
 /*
 ********************************* variables *********************************
 */
-    FILE* out_fp;
 
     Timer_t _timer;
 
@@ -70,24 +69,6 @@ private :
     std::map<DevPtr, std::shared_ptr<TenAlloc_t>> active_tensors;
 
     std::vector<std::shared_ptr<KernelLauch_t>> kernel_events;
-
-    typedef enum {
-        MEMCPY_UNKNOWN = 0,
-        MEMCPY_H2H = 1,
-        MEMCPY_H2D = 2,
-        MEMCPY_D2H = 3,
-        MEMCPY_D2D = 4,
-    } MemcpyDirection_t;
-    struct CpyStats {
-        uint64_t count = 0;
-        uint64_t size = 0;
-    };
-    std::map<MemcpyDirection_t, CpyStats> cpy_stats;
-    struct SetStats {
-        uint64_t count = 0;
-        uint64_t size = 0;
-    };
-    SetStats set_stats;
 
     struct MemStats {
         uint64_t alloc_count = 0;
@@ -123,11 +104,13 @@ private :
 
     typedef struct {
         uint64_t op_id = 0;
+        uint64_t last_start_op_id = 0;
         uint64_t ten_id = 0;
         uint64_t mem_id = 0;
         uint64_t kernel_id = 0;
     } opt_keys_t;
     opt_keys_t opt_keys;
+    std::unordered_map<uint64_t, uint64_t> op_prefetch_timing;
 };  
 
 }   // yosemite
