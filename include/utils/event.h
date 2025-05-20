@@ -215,6 +215,8 @@ typedef struct OpStart : public Event {
     uint64_t end_time;
     uint64_t pending_kernels;
     uint64_t pending_ops;
+    uint64_t pending_mem_alloc;
+    uint64_t pending_ten_alloc;
     std::string op_name;
     void* ctx;
     uint64_t key;   // for UVM Advisor

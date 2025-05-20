@@ -106,13 +106,17 @@ void UVMAdvisor::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
     if (mem->alloc_type != SANITIZER_UVM_MEMORY_FLAG) {
         return;
     }
+
     opt_keys.mem_id ++;
     mem->key = opt_keys.mem_id;
     mem->timestamp = _timer.get();
+    op_stats.pending_mem_alloc++;
     mem_stats.alloc_count++;
     mem_stats.alloc_size += mem->size;
     alloc_events.emplace(_timer.get(), mem);
     active_memories.emplace(mem->addr, mem);
+
+    mem_alloc_during_this_op.insert(mem->addr);
 
     _timer.increment(true);
 }
@@ -158,19 +162,23 @@ void UVMAdvisor::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
     if (ten->size <= LARGE_TENSOR_THRESHOLD) {
         return;
     }
+    opt_keys.ten_id ++;
+
     if (!find_uvm_tensor(ten->addr)) {
         return;
     }
 
-
-    opt_keys.ten_id ++;
+    
     ten->key = opt_keys.ten_id;
+    op_stats.pending_ten_alloc++;
     ten_stats.alloc_count++;
     ten_stats.alloc_size += ten->size;
 
     ten->timestamp = _timer.get();
     tenalloc_events.emplace(_timer.get(), ten);
     active_tensors.emplace(ten->addr, ten);
+
+    ten_alloc_during_this_op.insert(ten->addr);
 
     _timer.increment(true);
 }
@@ -212,17 +220,23 @@ void UVMAdvisor::op_end_callback(std::shared_ptr<OpEnd_t> op) {
     auto op_start = op_stack.top();
     op_stack.pop();
     if (op_stack.empty()) {
-        if (op_stats.pending_kernels > 0) {
+        if (op_stats.pending_kernels > 0 && kernel_resources.size() > 0) {
             assert(op_tables.find(op_start->timestamp) == op_tables.end());
             op_start->end_time = _timer.get();
             op_start->pending_kernels = op_stats.pending_kernels;
             op_start->pending_ops = op_stats.pending_ops;
+            op_start->pending_mem_alloc = op_stats.pending_mem_alloc;
+            op_start->pending_ten_alloc = op_stats.pending_ten_alloc;
             op_tables[op_start->timestamp] = std::make_pair(op_start, kernel_resources);
         }
         op_stats.group_count++;
         op_stats.pending_kernels = 0;
         op_stats.pending_ops = 0;
+        op_stats.pending_mem_alloc = 0;
+        op_stats.pending_ten_alloc = 0;
         kernel_resources.clear();
+        ten_alloc_during_this_op.clear();
+        mem_alloc_during_this_op.clear();
     }
 
     _timer.increment(true);
@@ -239,15 +253,25 @@ void UVMAdvisor::gpu_data_analysis(void* data, uint64_t size) {
     for (uint32_t i = 0; i < states->size; i++) {
         if (states->touch[i] == 1) {
             auto mem = active_memories.find(states->start_end[i].start);
-            mem_alloc_vec.push_back(mem->second);
+            // not allocated during this op
+            if (mem_alloc_during_this_op.find(mem->second->addr) == mem_alloc_during_this_op.end()) {
+                mem_alloc_vec.push_back(mem->second);
+            }
         }
     }
 
     for (uint32_t i = 0; i < tensor_states->size; i++) {
         if (tensor_states->touch[i] == 1) {
             auto ten = active_tensors.find(tensor_states->start_end[i].start);
-            ten_alloc_vec.push_back(ten->second);
+            // not allocated during this op
+            if (ten_alloc_during_this_op.find(ten->second->addr) == ten_alloc_during_this_op.end()) {
+                ten_alloc_vec.push_back(ten->second);
+            }
         }
+    }
+
+    if (mem_alloc_vec.empty() && ten_alloc_vec.empty()) {
+        return;
     }
 
     auto kernel = kernel_events.back();
@@ -317,8 +341,8 @@ void UVMAdvisor::flush() {
     fprintf(out, "================================================================================\n");
     for (auto& it : op_tables) {
         auto op = it.second.first;
-        fprintf(out, "Op - %.30s, op_id: %lu, pending_ops: %lu, pending_kernels: %lu\n", 
-                op->op_name.c_str(), op->key, op->pending_ops, op->pending_kernels);
+        fprintf(out, "Op - %.30s, op_id: %lu, pending_ops: %lu, pending_kernels: %lu, pending_mem_alloc: %lu, pending_ten_alloc: %lu\n", 
+                op->op_name.c_str(), op->key, op->pending_ops, op->pending_kernels, op->pending_mem_alloc, op->pending_ten_alloc);
         for (auto& kernel_tuple : it.second.second) {
             auto kernel = std::get<0>(kernel_tuple);
             auto mem_alloc_vec = std::get<1>(kernel_tuple);

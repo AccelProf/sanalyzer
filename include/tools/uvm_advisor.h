@@ -11,6 +11,7 @@
 #include <stack>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace yosemite {
 
@@ -89,6 +90,8 @@ private :
         uint64_t count = 0;
         uint64_t group_count = 0;
         uint64_t pending_ops = 0;
+        uint64_t pending_mem_alloc = 0;
+        uint64_t pending_ten_alloc = 0;
         uint64_t pending_kernels = 0;
     };
     OpStats op_stats;
@@ -109,6 +112,9 @@ private :
         uint64_t kernel_id = 0;
     } opt_keys_t;
     opt_keys_t opt_keys;
+
+    std::unordered_set<uint64_t> mem_alloc_during_this_op;
+    std::unordered_set<uint64_t> ten_alloc_during_this_op;
 };  
 
 }   // yosemite
