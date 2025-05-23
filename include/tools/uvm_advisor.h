@@ -76,6 +76,8 @@ private :
         uint64_t alloc_size = 0;
         uint64_t free_count = 0;
         uint64_t free_size = 0;
+        uint64_t current_mem_size = 0;
+        uint64_t max_mem_size = 0;
     };
     MemStats mem_stats;
     struct TenStats {
@@ -83,6 +85,8 @@ private :
         uint64_t alloc_size = 0;
         uint64_t free_count = 0;
         uint64_t free_size = 0;
+        uint64_t current_ten_size = 0;
+        uint64_t max_ten_size = 0;
     };
     TenStats ten_stats;
 

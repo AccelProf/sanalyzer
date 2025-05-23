@@ -103,6 +103,8 @@ void UVMAdvisor::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
 
 
 void UVMAdvisor::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
+    mem_stats.current_mem_size += mem->size;
+    mem_stats.max_mem_size = std::max(mem_stats.max_mem_size, mem_stats.current_mem_size);
     if (mem->alloc_type != SANITIZER_UVM_MEMORY_FLAG) {
         return;
     }
@@ -123,6 +125,7 @@ void UVMAdvisor::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
 
 
 void UVMAdvisor::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
+    mem_stats.current_mem_size -= mem->size;
     if (mem->alloc_type != SANITIZER_UVM_MEMORY_FLAG) {
         return;
     }
@@ -159,6 +162,8 @@ bool UVMAdvisor::find_uvm_tensor(uint64_t ptr) {
 
 
 void UVMAdvisor::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
+    ten_stats.current_ten_size += ten->size;
+    ten_stats.max_ten_size = std::max(ten_stats.max_ten_size, ten_stats.current_ten_size);
     if (ten->size <= LARGE_TENSOR_THRESHOLD) {
         return;
     }
@@ -185,6 +190,7 @@ void UVMAdvisor::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
 
 
 void UVMAdvisor::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
+    ten_stats.current_ten_size -= -ten->size;
     if (-ten->size <= LARGE_TENSOR_THRESHOLD) {
         return;
     }
@@ -325,11 +331,15 @@ void UVMAdvisor::flush() {
     out = fopen(file_name.c_str(), "w");
     
     fprintf(out, "--------------------------------------------------------------------------------\n");
+    fprintf(out, "%-12s max_size: %lu (%s)\n", 
+            "[Memory]", mem_stats.max_mem_size, format_size(mem_stats.max_mem_size).c_str());
     fprintf(out, "%-12s count: %-10lu, size: %lu (%s)\n", 
             "[MemMalloc]", mem_stats.alloc_count, mem_stats.alloc_size, format_size(mem_stats.alloc_size).c_str());
     fprintf(out, "%-12s count: %-10lu, size: %lu (%s)\n", 
             "[MemFree]", mem_stats.free_count, mem_stats.free_size, format_size(mem_stats.free_size).c_str());
 
+    fprintf(out, "%-12s max_size: %lu (%s)\n", 
+            "[Tensor]", ten_stats.max_ten_size, format_size(ten_stats.max_ten_size).c_str());
     fprintf(out, "%-12s count: %-10lu, size: %lu (%s)\n", 
             "[TenMalloc]", ten_stats.alloc_count, ten_stats.alloc_size, format_size(ten_stats.alloc_size).c_str());
     fprintf(out, "%-12s count: %-10lu, size: %lu (%s)\n", 
