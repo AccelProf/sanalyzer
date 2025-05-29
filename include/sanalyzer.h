@@ -22,6 +22,7 @@ typedef enum {
     GPU_PATCH_APP_ANALYSIS = 5,
     GPU_PATCH_APP_ANALYSIS_CPU = 6,
     GPU_PATCH_APP_ANALYSIS_NVBIT = 7,
+    GPU_PATCH_TIME_HOTNESS_CPU = 8,
 } AccelProfPatchName_t;
 
 
