@@ -10,6 +10,7 @@
 #include "tools/app_analysis.h"
 #include "tools/app_analysis_cpu.h"
 #include "tools/app_analysis_nvbit.h"
+#include "tools/time_hotness_cpu.h"
 
 #include <memory>
 #include <map>
@@ -65,6 +66,9 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
     } else if (std::string(tool_name) == "app_analysis_cpu") {
         tool = APP_ANALYSIS_CPU;
         _tools.emplace(APP_ANALYSIS_CPU, std::make_shared<AppAnalysisCPU>());
+    } else if (std::string(tool_name) == "time_hotness_cpu") {
+        tool = TIME_HOTNESS_CPU;
+        _tools.emplace(TIME_HOTNESS_CPU, std::make_shared<TimeHotnessCPU>());
     } else {
         fprintf(stderr, "[SANITIZER ERROR] Tool not found.\n");
         fflush(stderr);
@@ -196,6 +200,9 @@ YosemiteResult_t yosemite_init(AccelProfOptions_t& options) {
         options.patch_file = "gpu_patch_app_analysis_cpu.fatbin";
     } else if (tool == APP_ANALYSIS_NVBIT) {
         options.patch_name = GPU_PATCH_APP_ANALYSIS_NVBIT;
+    } else if (tool == TIME_HOTNESS_CPU) {
+        options.patch_name = GPU_PATCH_TIME_HOTNESS_CPU;
+        options.patch_file = "gpu_patch_time_hotness_cpu.fatbin";
     }
 
     // enable torch profiler?
