@@ -3,6 +3,7 @@
 
 #include <string>
 #include <cstddef>
+#include <cstdint>
 
 namespace yosemite {
 
