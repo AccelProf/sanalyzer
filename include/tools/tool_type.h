@@ -11,7 +11,8 @@ typedef enum {
     APP_ANALYSIS_CPU = 6,
     APP_ANALYSIS_NVBIT = 7,
     TIME_HOTNESS_CPU = 8,
-    TOOL_NUMS = 9
+    EVENT_TRACE = 9,
+    TOOL_NUMS = 10
 } AnalysisTool_t;
 
 #endif // TOOL_TYPE_H

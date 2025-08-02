@@ -11,6 +11,7 @@
 #include "tools/app_analysis_cpu.h"
 #include "tools/app_analysis_nvbit.h"
 #include "tools/time_hotness_cpu.h"
+#include "tools/event_trace.h"
 
 #include <memory>
 #include <map>
@@ -45,6 +46,14 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
         return YOSEMITE_SUCCESS;
     }
 
+    if (std::string(yosemite_device_name) == "rocm") {
+        if (std::string(tool_name) != "event_trace") {
+            fprintf(stderr, "[SANITIZER ERROR] Unsupported tool in rocm mode, %s.\n", tool_name);
+            fflush(stderr);
+            return YOSEMITE_NOT_IMPLEMENTED;
+        }
+    }
+
     if (std::string(tool_name) == "code_check") {
         tool = CODE_CHECK;
         _tools.emplace(CODE_CHECK, std::make_shared<CodeCheck>());
@@ -69,6 +78,9 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
     } else if (std::string(tool_name) == "time_hotness_cpu") {
         tool = TIME_HOTNESS_CPU;
         _tools.emplace(TIME_HOTNESS_CPU, std::make_shared<TimeHotnessCPU>());
+    } else if (std::string(tool_name) == "event_trace") {
+        tool = EVENT_TRACE;
+        _tools.emplace(EVENT_TRACE, std::make_shared<EventTrace>());
     } else {
         fprintf(stderr, "[SANITIZER ERROR] Tool not found.\n");
         fflush(stderr);
@@ -203,6 +215,8 @@ YosemiteResult_t yosemite_init(AccelProfOptions_t& options) {
     } else if (tool == TIME_HOTNESS_CPU) {
         options.patch_name = GPU_PATCH_TIME_HOTNESS_CPU;
         options.patch_file = "gpu_patch_time_hotness_cpu.fatbin";
+    } else if (tool == EVENT_TRACE) {
+        options.patch_name = GPU_NO_PATCH;
     }
 
     // enable torch profiler?
