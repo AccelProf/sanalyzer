@@ -46,12 +46,19 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
         return YOSEMITE_SUCCESS;
     }
 
+    // rocm mode
     if (std::string(yosemite_device_name) == "rocm") {
-        if (std::string(tool_name) != "event_trace") {
+        if (std::string(tool_name) == "event_trace") {
+            tool = EVENT_TRACE;
+            _tools.emplace(EVENT_TRACE, std::make_shared<EventTrace>());
+        } else {
             fprintf(stderr, "[SANITIZER ERROR] Unsupported tool in rocm mode, %s.\n", tool_name);
             fflush(stderr);
             return YOSEMITE_NOT_IMPLEMENTED;
         }
+        fprintf(stdout, "[SANITIZER INFO] Enabling %s tool in rocm mode.\n", tool_name);
+        fflush(stdout);
+        return YOSEMITE_SUCCESS;
     }
 
     if (std::string(tool_name) == "code_check") {

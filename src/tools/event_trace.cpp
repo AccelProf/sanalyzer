@@ -14,7 +14,30 @@ EventTrace::EventTrace() : Tool(EVENT_TRACE) {}
 
 EventTrace::~EventTrace() {}
 
-void EventTrace::evt_callback(EventPtr_t evt) {}
+void EventTrace::evt_callback(EventPtr_t evt) {
+    switch (evt->evt_type) {
+        case EventType_KERNEL_LAUNCH:
+            kernel_start_callback(std::dynamic_pointer_cast<KernelLauch_t>(evt));
+            break;
+        case EventType_KERNEL_END:
+            kernel_end_callback(std::dynamic_pointer_cast<KernelEnd_t>(evt));
+            break;
+        case EventType_MEM_ALLOC:
+            mem_alloc_callback(std::dynamic_pointer_cast<MemAlloc_t>(evt));
+            break;
+        case EventType_MEM_FREE:
+            mem_free_callback(std::dynamic_pointer_cast<MemFree_t>(evt));
+            break;
+        case EventType_MEM_COPY:
+            mem_cpy_callback(std::dynamic_pointer_cast<MemCpy_t>(evt));
+            break;
+        case EventType_MEM_SET:
+            mem_set_callback(std::dynamic_pointer_cast<MemSet_t>(evt));
+            break;
+        default:
+            break;
+    }
+}
 
 void EventTrace::flush() {}
 
