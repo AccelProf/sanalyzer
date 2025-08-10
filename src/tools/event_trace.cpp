@@ -34,6 +34,18 @@ void EventTrace::evt_callback(EventPtr_t evt) {
         case EventType_MEM_SET:
             mem_set_callback(std::dynamic_pointer_cast<MemSet_t>(evt));
             break;
+        case EventType_TEN_ALLOC:
+            ten_alloc_callback(std::dynamic_pointer_cast<TenAlloc_t>(evt));
+            break;
+        case EventType_TEN_FREE:
+            ten_free_callback(std::dynamic_pointer_cast<TenFree_t>(evt));
+            break;
+        case EventType_OP_START:
+            op_start_callback(std::dynamic_pointer_cast<OpStart_t>(evt));
+            break;
+        case EventType_OP_END:
+            op_end_callback(std::dynamic_pointer_cast<OpEnd_t>(evt));
+            break;
         default:
             break;
     }
@@ -70,5 +82,25 @@ void EventTrace::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
 
 void EventTrace::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
     PRINT("[YOSEMITE INFO] Mem set: %lu, size: %lu, value: %d\n", mem->addr, mem->size, mem->value);
+    _timer.increment(true);
+}
+
+void EventTrace::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
+    PRINT("[YOSEMITE INFO] Ten alloc: %lu, size: %lu\n", ten->addr, ten->size);
+    _timer.increment(true);
+}
+
+void EventTrace::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
+    PRINT("[YOSEMITE INFO] Ten free: %lu, size: %lu\n", ten->addr, ten->size);
+    _timer.increment(true);
+}
+
+void EventTrace::op_start_callback(std::shared_ptr<OpStart_t> op) {
+    PRINT("[YOSEMITE INFO] Op start: %s\n", op->op_name.c_str());
+    _timer.increment(true);
+}
+
+void EventTrace::op_end_callback(std::shared_ptr<OpEnd_t> op) {
+    PRINT("[YOSEMITE INFO] Op end: %s\n", op->op_name.c_str());
     _timer.increment(true);
 }

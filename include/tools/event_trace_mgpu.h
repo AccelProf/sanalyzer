@@ -1,17 +1,18 @@
-#ifndef YOSEMITE_TOOL_EVENT_TRACE_H
-#define YOSEMITE_TOOL_EVENT_TRACE_H
+#ifndef YOSEMITE_TOOL_EVENT_TRACE_MGPU_H
+#define YOSEMITE_TOOL_EVENT_TRACE_MGPU_H
 
 #include "tools/tool.h"
 #include "utils/event.h"
 #include <map>
+#include <vector>
 
 namespace yosemite {
 
-class EventTrace final : public Tool {
+class EventTraceMGPU final : public Tool {
     public:
-    EventTrace();
+    EventTraceMGPU();
 
-    ~EventTrace();
+    ~EventTraceMGPU();
 
     void gpu_data_analysis(void* data, uint64_t size) override {};
 
@@ -46,19 +47,18 @@ private:
 
     void op_end_callback(std::shared_ptr<OpEnd_t> op);
 
+
 /*
 ********************************* variables *********************************
 */
-    Timer_t _timer;
+    // <device_id, size>
+    std::map<int, int64_t> _memory_size;
+    std::map<int, int64_t> _tensor_size;
 
-    std::map<uint64_t, std::shared_ptr<KernelLaunch_t>> kernel_events;
-    std::map<uint64_t, std::shared_ptr<MemAlloc_t>> alloc_events;
-    std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
-
-    std::map<uint64_t, std::shared_ptr<TenAlloc>> tensor_events;
-    std::map<DevPtr, std::shared_ptr<TenAlloc>> active_tensors;
+    std::map<int, std::vector<int64_t>> _memory_size_list;
+    std::map<int, std::vector<int64_t>> _tensor_size_list;
 
 };
 
 } // namespace yosemite
-#endif // YOSEMITE_TOOL_EVENT_TRACE_H
+#endif // YOSEMITE_TOOL_EVENT_TRACE_MGPU_H

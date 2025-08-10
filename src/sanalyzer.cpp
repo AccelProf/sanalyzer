@@ -12,6 +12,7 @@
 #include "tools/app_analysis_nvbit.h"
 #include "tools/time_hotness_cpu.h"
 #include "tools/event_trace.h"
+#include "tools/event_trace_mgpu.h"
 
 #include <memory>
 #include <map>
@@ -88,6 +89,9 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
     } else if (std::string(tool_name) == "event_trace") {
         tool = EVENT_TRACE;
         _tools.emplace(EVENT_TRACE, std::make_shared<EventTrace>());
+    } else if (std::string(tool_name) == "event_trace_mgpu") {
+        tool = EVENT_TRACE_MGPU;
+        _tools.emplace(EVENT_TRACE_MGPU, std::make_shared<EventTraceMGPU>());
     } else {
         fprintf(stderr, "[SANITIZER ERROR] Tool not found.\n");
         fflush(stderr);
