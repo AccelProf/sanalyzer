@@ -125,57 +125,57 @@ YosemiteResult_t yosemite_torch_prof_enable() {
 ****************************************************************************************/
 
 
-YosemiteResult_t yosemite_alloc_callback(uint64_t ptr, uint64_t size, int type) {
+YosemiteResult_t yosemite_alloc_callback(uint64_t ptr, uint64_t size, int type, int device_id) {
     for (auto &tool : _tools) {
-        auto mem_alloc = std::make_shared<MemAlloc_t>(ptr, size, type);
+        auto mem_alloc = std::make_shared<MemAlloc_t>(ptr, size, type, device_id);
         tool.second->evt_callback(mem_alloc);
     }
     return YOSEMITE_SUCCESS;
 }
 
 
-YosemiteResult_t yosemite_free_callback(uint64_t ptr, uint64_t size, int type) {
+YosemiteResult_t yosemite_free_callback(uint64_t ptr, uint64_t size, int type, int device_id) {
     if (ptr == 0) {
         return YOSEMITE_CUDA_MEMFREE_ZERO;
     }
     for (auto &tool : _tools) {
-        auto mem_free = std::make_shared<MemFree_t>(ptr, size, type);
+        auto mem_free = std::make_shared<MemFree_t>(ptr, size, type, device_id);
         tool.second->evt_callback(mem_free);
     }
     return YOSEMITE_SUCCESS;
 }
 
 
-YosemiteResult_t yosemite_memcpy_callback(uint64_t dst, uint64_t src, uint64_t size, bool is_async, uint32_t direction) {
+YosemiteResult_t yosemite_memcpy_callback(uint64_t dst, uint64_t src, uint64_t size, bool is_async, uint32_t direction, int device_id) {
     for (auto &tool : _tools) {
-        auto mem_cpy = std::make_shared<MemCpy_t>(dst, src, size, is_async, direction);
+        auto mem_cpy = std::make_shared<MemCpy_t>(dst, src, size, is_async, direction, device_id);
         tool.second->evt_callback(mem_cpy);
     }
     return YOSEMITE_SUCCESS;
 }
 
 
-YosemiteResult_t yosemite_memset_callback(uint64_t dst, uint32_t size, int value, bool is_async) {
+YosemiteResult_t yosemite_memset_callback(uint64_t dst, uint32_t size, int value, bool is_async, int device_id) {
     for (auto &tool : _tools) {
-        auto mem_set = std::make_shared<MemSet_t>(dst, size, value, is_async);
+        auto mem_set = std::make_shared<MemSet_t>(dst, size, value, is_async, device_id);
         tool.second->evt_callback(mem_set);
     }
     return YOSEMITE_SUCCESS;
 }
 
 
-YosemiteResult_t yosemite_kernel_start_callback(std::string kernel_name) {
+YosemiteResult_t yosemite_kernel_start_callback(std::string kernel_name, int device_id) {
     for (auto &tool : _tools) {
-        auto kernel = std::make_shared<KernelLauch_t>(kernel_name); 
+        auto kernel = std::make_shared<KernelLaunch_t>(kernel_name, device_id); 
         tool.second->evt_callback(kernel);
     }
     return YOSEMITE_SUCCESS;
 }
 
 
-YosemiteResult_t yosemite_kernel_end_callback(std::string kernel_name) {
+YosemiteResult_t yosemite_kernel_end_callback(std::string kernel_name, int device_id) {
     for (auto &tool : _tools) {
-        auto kernel = std::make_shared<KernelEnd_t>(kernel_name);
+        auto kernel = std::make_shared<KernelEnd_t>(kernel_name, device_id);
         tool.second->evt_callback(kernel);
     }
     return YOSEMITE_SUCCESS;
@@ -254,9 +254,9 @@ YosemiteResult_t yosemite_terminate() {
 
 
 YosemiteResult_t yosemite_tensor_malloc_callback(uint64_t ptr, int64_t alloc_size,
-                                    int64_t total_allocated, int64_t total_reserved) {
+                                    int64_t total_allocated, int64_t total_reserved, int device_id) {
     for (auto &tool : _tools) {
-        auto ten_alloc = std::make_shared<TenAlloc_t>(ptr, alloc_size, total_allocated, total_reserved);
+        auto ten_alloc = std::make_shared<TenAlloc_t>(ptr, alloc_size, total_allocated, total_reserved, device_id);
         tool.second->evt_callback(ten_alloc);
     }
     return YOSEMITE_SUCCESS;
@@ -264,9 +264,9 @@ YosemiteResult_t yosemite_tensor_malloc_callback(uint64_t ptr, int64_t alloc_siz
 
 
 YosemiteResult_t yosemite_tensor_free_callback(uint64_t ptr, int64_t alloc_size,
-                                    int64_t total_allocated, int64_t total_reserved) {
+                                    int64_t total_allocated, int64_t total_reserved, int device_id) {
     for (auto &tool : _tools) {
-        auto ten_free = std::make_shared<TenFree_t>(ptr, alloc_size, total_allocated, total_reserved);
+        auto ten_free = std::make_shared<TenFree_t>(ptr, alloc_size, total_allocated, total_reserved, device_id);
         tool.second->evt_callback(ten_free);
     }
     return YOSEMITE_SUCCESS;

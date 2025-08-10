@@ -34,7 +34,7 @@ public:
 private :
     void init();
 
-    void kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel);
+    void kernel_start_callback(std::shared_ptr<KernelLaunch_t> kernel);
 
     void kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel);
 
@@ -71,7 +71,7 @@ private :
     std::set<std::shared_ptr<TenAlloc_t>> touched_tensors;
 
     struct KernelStats {
-        std::shared_ptr<KernelLauch_t> kernel_launch;
+        std::shared_ptr<KernelLaunch_t> kernel_launch;
         size_t tensor_working_set_size = 0;
         size_t memory_working_set_size = 0;
         size_t tensor_footprint_size = 0;

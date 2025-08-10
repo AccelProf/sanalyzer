@@ -34,7 +34,7 @@ public:
 private :
     void init();
 
-    void kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel);
+    void kernel_start_callback(std::shared_ptr<KernelLaunch_t> kernel);
 
     void kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel);
 
@@ -69,7 +69,7 @@ private :
     std::map<uint64_t, std::shared_ptr<TenAlloc_t>> tenalloc_events;
     std::map<DevPtr, std::shared_ptr<TenAlloc_t>> active_tensors;
 
-    std::vector<std::shared_ptr<KernelLauch_t>> kernel_events;
+    std::vector<std::shared_ptr<KernelLaunch_t>> kernel_events;
 
     struct MemStats {
         uint64_t alloc_count = 0;
@@ -102,7 +102,7 @@ private :
 
     using MemAllocVec = std::vector<std::shared_ptr<MemAlloc_t>>;
     using TenAllocVec = std::vector<std::shared_ptr<TenAlloc_t>>;
-    using KernelResources = std::tuple<std::shared_ptr<KernelLauch_t>, MemAllocVec, TenAllocVec>;
+    using KernelResources = std::tuple<std::shared_ptr<KernelLaunch_t>, MemAllocVec, TenAllocVec>;
     using KernelResourceVec = std::vector<KernelResources>;
     using OpResourceMap = std::map<uint64_t, std::pair<std::shared_ptr<OpStart_t>, KernelResourceVec>>;
     KernelResourceVec kernel_resources;

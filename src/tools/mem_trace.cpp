@@ -32,7 +32,7 @@ MemTrace::MemTrace() : Tool(MEM_TRACE) {
 MemTrace::~MemTrace() {}
 
 
-void MemTrace::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
+void MemTrace::kernel_start_callback(std::shared_ptr<KernelLaunch_t> kernel) {
 
     kernel->kernel_id = kernel_id++;
     kernel_events.emplace(_timer.get(), kernel);
@@ -42,7 +42,7 @@ void MemTrace::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
 }
 
 
-void MemTrace::kernel_trace_flush(std::shared_ptr<KernelLauch_t> kernel) {
+void MemTrace::kernel_trace_flush(std::shared_ptr<KernelLaunch_t> kernel) {
     std::string filename = output_directory + "/kernel_"
                             + std::to_string(kernel->kernel_id) + ".txt";
     printf("Dumping traces to %s\n", filename.c_str());
@@ -139,7 +139,7 @@ void MemTrace::gpu_data_analysis(void* data, uint64_t size) {
 void MemTrace::evt_callback(EventPtr_t evt) {
     switch (evt->evt_type) {
         case EventType_KERNEL_LAUNCH:
-            kernel_start_callback(std::dynamic_pointer_cast<KernelLauch_t>(evt));
+            kernel_start_callback(std::dynamic_pointer_cast<KernelLaunch_t>(evt));
             break;
         case EventType_KERNEL_END:
             kernel_end_callback(std::dynamic_pointer_cast<KernelEnd_t>(evt));

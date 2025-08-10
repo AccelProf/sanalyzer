@@ -26,7 +26,7 @@ public:
     void flush();
 
 private:
-    void kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel);
+    void kernel_start_callback(std::shared_ptr<KernelLaunch_t> kernel);
 
     void kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel);
 

@@ -50,6 +50,7 @@ typedef struct Event
 {
     uint64_t timestamp;
     EventType_t evt_type;
+    int device_id;
 
     Event() = default;
     virtual ~Event() = default;
@@ -60,7 +61,7 @@ typedef struct Event
 typedef std::shared_ptr<Event> EventPtr_t;
 
 
-typedef struct KernelLauch : public Event {
+typedef struct KernelLaunch : public Event {
     uint64_t end_time;
     std::string kernel_name;
     uint32_t kernel_id;
@@ -69,17 +70,18 @@ typedef struct KernelLauch : public Event {
     uint32_t touched_objects_size;
     uint64_t key;   // for UVM Advisor
 
-    KernelLauch() {
-        evt_type = EventType_KERNEL_LAUNCH;
+    KernelLaunch() {
+        this->evt_type = EventType_KERNEL_LAUNCH;
     }
 
-    KernelLauch(std::string kernel_name)
+    KernelLaunch(std::string kernel_name, int device_id)
         : kernel_name(kernel_name) {
-            evt_type = EventType_KERNEL_LAUNCH;
+            this->evt_type = EventType_KERNEL_LAUNCH;
+            this->device_id = device_id;
         }
 
-    ~KernelLauch() = default;
-}KernelLauch_t;
+    ~KernelLaunch() = default;
+}KernelLaunch_t;
 
 typedef struct KernelEnd : public Event {
     uint64_t end_time;
@@ -87,13 +89,14 @@ typedef struct KernelEnd : public Event {
     uint64_t access_count;
 
     KernelEnd() {
-        evt_type = EventType_KERNEL_END;
+        this->evt_type = EventType_KERNEL_END;
         access_count = 0;
     }
 
-    KernelEnd(std::string kernel_name)
+    KernelEnd(std::string kernel_name, int device_id)
         : kernel_name(kernel_name) {
-            evt_type = EventType_KERNEL_END;
+            this->evt_type = EventType_KERNEL_END;
+            this->device_id = device_id;
         }
 
     ~KernelEnd() = default;
@@ -107,12 +110,13 @@ typedef struct MemAlloc : public Event {
     uint64_t key;   // for UVM Advisor
 
     MemAlloc() {
-        evt_type = EventType_MEM_ALLOC;
+        this->evt_type = EventType_MEM_ALLOC;
     }
 
-    MemAlloc(DevPtr addr, uint64_t size, int alloc_type)
+    MemAlloc(DevPtr addr, uint64_t size, int alloc_type, int device_id)
         : addr(addr), size(size), alloc_type(alloc_type) {
-            evt_type = EventType_MEM_ALLOC;
+            this->evt_type = EventType_MEM_ALLOC;
+            this->device_id = device_id;
         }
 
     ~MemAlloc() = default;
@@ -124,12 +128,13 @@ typedef struct MemFree : public Event {
     int alloc_type;
 
     MemFree() {
-        evt_type = EventType_MEM_FREE;
+        this->evt_type = EventType_MEM_FREE;
     }
 
-    MemFree(DevPtr addr, uint64_t size, int alloc_type)
+    MemFree(DevPtr addr, uint64_t size, int alloc_type, int device_id)
         : addr(addr), size(size), alloc_type(alloc_type) {
-            evt_type = EventType_MEM_FREE;
+            this->evt_type = EventType_MEM_FREE;
+            this->device_id = device_id;
         }
 
     ~MemFree() = default;
@@ -143,12 +148,13 @@ typedef struct MemCpy : public Event {
     uint32_t direction;
 
     MemCpy() {
-        evt_type = EventType_MEM_COPY;
+        this->evt_type = EventType_MEM_COPY;
     }
     
-    MemCpy(uint64_t src_addr, uint64_t dst_addr, uint64_t size, bool is_async, uint32_t direction)
+    MemCpy(uint64_t src_addr, uint64_t dst_addr, uint64_t size, bool is_async, uint32_t direction, int device_id)
         : src_addr(src_addr), dst_addr(dst_addr), size(size), is_async(is_async), direction(direction) {
-            evt_type = EventType_MEM_COPY;
+            this->evt_type = EventType_MEM_COPY;
+            this->device_id = device_id;
         }
 
     ~MemCpy() = default;
@@ -162,12 +168,13 @@ typedef struct MemSet : public Event {
     bool is_async;
 
     MemSet() {
-        evt_type = EventType_MEM_SET;
+        this->evt_type = EventType_MEM_SET;
     }
 
-    MemSet(uint64_t addr, uint64_t size, uint32_t value, bool is_async)
+    MemSet(uint64_t addr, uint64_t size, uint32_t value, bool is_async, int device_id)
         : addr(addr), size(size), value(value), is_async(is_async) {
-            evt_type = EventType_MEM_SET;
+            this->evt_type = EventType_MEM_SET;
+            this->device_id = device_id;
         }
 
     ~MemSet() = default;
@@ -182,12 +189,13 @@ typedef struct TenAlloc : public Event {
     uint64_t key;   // for UVM Advisor
 
     TenAlloc() {
-        evt_type = EventType_TEN_ALLOC;
+        this->evt_type = EventType_TEN_ALLOC;
     }
 
-    TenAlloc(DevPtr addr, int64_t size, int64_t allocated_size, int64_t reserved_size)
+    TenAlloc(DevPtr addr, int64_t size, int64_t allocated_size, int64_t reserved_size, int device_id)
         : addr(addr), size(size), allocated_size(allocated_size), reserved_size(reserved_size) {
-            evt_type = EventType_TEN_ALLOC;
+            this->evt_type = EventType_TEN_ALLOC;
+            this->device_id = device_id;
         }
 
     ~TenAlloc() = default;
@@ -200,12 +208,13 @@ typedef struct TenFree : public Event {
     int64_t reserved_size;
 
     TenFree() {
-        evt_type = EventType_TEN_FREE;
+        this->evt_type = EventType_TEN_FREE;
     }
 
-    TenFree(DevPtr addr, int64_t size, int64_t allocated_size, int64_t reserved_size)
+    TenFree(DevPtr addr, int64_t size, int64_t allocated_size, int64_t reserved_size, int device_id)
         : addr(addr), size(size), allocated_size(allocated_size), reserved_size(reserved_size) {
-            evt_type = EventType_TEN_FREE;
+            this->evt_type = EventType_TEN_FREE;
+            this->device_id = device_id;
         }
 
     ~TenFree() = default;

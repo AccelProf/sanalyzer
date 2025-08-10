@@ -61,7 +61,7 @@ void AppAnalysis::init() {
 void AppAnalysis::evt_callback(EventPtr_t evt) {
     switch (evt->evt_type) {
         case EventType_KERNEL_LAUNCH:
-            kernel_start_callback(std::dynamic_pointer_cast<KernelLauch_t>(evt));
+            kernel_start_callback(std::dynamic_pointer_cast<KernelLaunch_t>(evt));
             break;
         case EventType_KERNEL_END:
             kernel_end_callback(std::dynamic_pointer_cast<KernelEnd_t>(evt));
@@ -96,7 +96,7 @@ void AppAnalysis::evt_callback(EventPtr_t evt) {
 }
 
 
-void AppAnalysis::kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel) {
+void AppAnalysis::kernel_start_callback(std::shared_ptr<KernelLaunch_t> kernel) {
     KernelStats stats;
     stats.kernel_launch = kernel;
     stats.tensor_footprint_size = ten_stats.alloc_size;

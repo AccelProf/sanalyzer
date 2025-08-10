@@ -27,7 +27,7 @@ public:
     void flush();
 
 private:
-    void kernel_start_callback(std::shared_ptr<KernelLauch_t> kernel);
+    void kernel_start_callback(std::shared_ptr<KernelLaunch_t> kernel);
 
     void kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel);
 
@@ -39,7 +39,7 @@ private:
 
     void ten_free_callback(std::shared_ptr<TenFree_t> ten);
 
-    void kernel_trace_flush(std::shared_ptr<KernelLauch_t> kernel);
+    void kernel_trace_flush(std::shared_ptr<KernelLaunch_t> kernel);
 
 
 /*
@@ -50,7 +50,7 @@ private:
     std::string output_directory;
     uint32_t kernel_id = 0;
 
-    std::map<uint64_t, std::shared_ptr<KernelLauch_t>> kernel_events;
+    std::map<uint64_t, std::shared_ptr<KernelLaunch_t>> kernel_events;
     std::map<uint64_t, std::shared_ptr<MemAlloc_t>> alloc_events;
     std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
 
