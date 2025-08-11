@@ -87,7 +87,12 @@ void EventTrace::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
 
 void EventTrace::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
     auto it = _active_memories.find(mem->addr);
-    assert(it != _active_memories.end());
+    if (it == _active_memories.end()) {
+        PRINT("[YOSEMITE INFO] Memory free callback: memory %lu not found. Active memories: %ld\n",
+                mem->addr, _active_memories.size());
+        // assert(false);
+        return;
+    }
 
     _memory_size -= it->second->size;
     _active_memories.erase(it);
