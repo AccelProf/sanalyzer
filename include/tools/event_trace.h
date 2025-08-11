@@ -3,6 +3,7 @@
 
 #include "tools/tool.h"
 #include "utils/event.h"
+#include <vector>
 #include <map>
 
 namespace yosemite {
@@ -49,14 +50,14 @@ private:
 /*
 ********************************* variables *********************************
 */
-    Timer_t _timer;
 
-    std::map<uint64_t, std::shared_ptr<KernelLaunch_t>> kernel_events;
-    std::map<uint64_t, std::shared_ptr<MemAlloc_t>> alloc_events;
-    std::map<DevPtr, std::shared_ptr<MemAlloc_t>> active_memories;
+    std::map<DevPtr, std::shared_ptr<MemAlloc_t>> _active_memories;
 
-    std::map<uint64_t, std::shared_ptr<TenAlloc>> tensor_events;
-    std::map<DevPtr, std::shared_ptr<TenAlloc>> active_tensors;
+    int64_t _memory_size = 0;
+    int64_t _tensor_size = 0;
+
+    std::vector<int64_t> _memory_size_list;
+    std::vector<int64_t> _tensor_size_list;
 
 };
 

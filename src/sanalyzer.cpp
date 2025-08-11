@@ -228,6 +228,8 @@ YosemiteResult_t yosemite_init(AccelProfOptions_t& options) {
         options.patch_file = "gpu_patch_time_hotness_cpu.fatbin";
     } else if (tool == EVENT_TRACE) {
         options.patch_name = GPU_NO_PATCH;
+    } else if (tool == EVENT_TRACE_MGPU) {
+        options.patch_name = GPU_NO_PATCH;
     }
 
     // enable torch profiler?

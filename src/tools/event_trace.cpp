@@ -1,4 +1,7 @@
 #include "tools/event_trace.h"
+#include <cassert>
+#include <fstream>
+#include <string>
 
 using namespace yosemite;
 
@@ -51,56 +54,64 @@ void EventTrace::evt_callback(EventPtr_t evt) {
     }
 }
 
-void EventTrace::flush() {}
+void EventTrace::flush() {
+    std::string mem_file_name = "memory_gpu.txt";
+    std::ofstream mem_file(mem_file_name);
+    for (auto &size : _memory_size_list) {
+        mem_file << size << std::endl;
+    }
+    mem_file.close();
+
+    std::string tensor_file_name = "tensor_gpu.txt";
+    std::ofstream tensor_file(tensor_file_name);
+    for (auto &size : _tensor_size_list) {
+        tensor_file << size << std::endl;
+    }
+    tensor_file.close();
+}
 
 void EventTrace::init() {}
 
 void EventTrace::kernel_start_callback(std::shared_ptr<KernelLaunch_t> kernel) {
-    PRINT("[YOSEMITE INFO] Kernel start: %s\n", kernel->kernel_name.c_str());
-    _timer.increment(true);
 }
 
 void EventTrace::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
-    PRINT("[YOSEMITE INFO] Kernel end: %s\n", kernel->kernel_name.c_str());
-    _timer.increment(true);
 }
 
 void EventTrace::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
-    PRINT("[YOSEMITE INFO] Mem alloc: %lu, size: %lu\n", mem->addr, mem->size);
-    _timer.increment(true);
+    _active_memories.try_emplace(mem->addr, mem);
+
+    _memory_size += mem->size;
+    _memory_size_list.push_back(_memory_size);
 }
 
 void EventTrace::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
-    PRINT("[YOSEMITE INFO] Mem free: %lu, size: %lu\n", mem->addr, mem->size);
-    _timer.increment(true);
-}
+    auto it = _active_memories.find(mem->addr);
+    assert(it != _active_memories.end());
 
-void EventTrace::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
-    PRINT("[YOSEMITE INFO] Mem copy: %lu -> %lu, size: %lu, direction: %d\n", mem->src_addr, mem->dst_addr, mem->size, mem->direction);
-    _timer.increment(true);
-}
-
-void EventTrace::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
-    PRINT("[YOSEMITE INFO] Mem set: %lu, size: %lu, value: %d\n", mem->addr, mem->size, mem->value);
-    _timer.increment(true);
+    _memory_size -= it->second->size;
+    _active_memories.erase(it);
+    _memory_size_list.push_back(_memory_size);
 }
 
 void EventTrace::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
-    PRINT("[YOSEMITE INFO] Ten alloc: %lu, size: %lu\n", ten->addr, ten->size);
-    _timer.increment(true);
+    _tensor_size += ten->size;
+    _tensor_size_list.push_back(_tensor_size);
 }
 
 void EventTrace::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
-    PRINT("[YOSEMITE INFO] Ten free: %lu, size: %lu\n", ten->addr, ten->size);
-    _timer.increment(true);
+    _tensor_size -= (-ten->size);
+    _tensor_size_list.push_back(_tensor_size);
+}
+
+void EventTrace::mem_cpy_callback(std::shared_ptr<MemCpy_t> mem) {
+}
+
+void EventTrace::mem_set_callback(std::shared_ptr<MemSet_t> mem) {
 }
 
 void EventTrace::op_start_callback(std::shared_ptr<OpStart_t> op) {
-    PRINT("[YOSEMITE INFO] Op start: %s\n", op->op_name.c_str());
-    _timer.increment(true);
 }
 
 void EventTrace::op_end_callback(std::shared_ptr<OpEnd_t> op) {
-    PRINT("[YOSEMITE INFO] Op end: %s\n", op->op_name.c_str());
-    _timer.increment(true);
 }
