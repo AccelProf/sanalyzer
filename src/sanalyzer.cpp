@@ -26,7 +26,7 @@ static std::map<AnalysisTool_t, std::shared_ptr<Tool>> _tools;
 YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
     const char* tool_name = std::getenv("YOSEMITE_TOOL_NAME");
     if (!tool_name) {
-        fprintf(stdout, "[SANITIZER ERROR] No tool name specified.\n");
+        fprintf(stdout, "[SANALYZER ERROR] No tool name specified.\n");
         return YOSEMITE_NOT_IMPLEMENTED;
     }
 
@@ -37,12 +37,12 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
             tool = APP_ANALYSIS_NVBIT;
             _tools.emplace(APP_ANALYSIS_NVBIT, std::make_shared<AppAnalysisNVBIT>());
         } else {
-            fprintf(stderr, "[SANITIZER ERROR] Unsupported tool in nvbit mode, %s.\n", tool_name);
+            fprintf(stderr, "[SANALYZER ERROR] Unsupported tool in nvbit mode, %s.\n", tool_name);
             fflush(stderr);
             return YOSEMITE_NOT_IMPLEMENTED;
         }
 
-        fprintf(stdout, "[SANITIZER INFO] Enabling %s tool in nvbit mode.\n", tool_name);
+        fprintf(stdout, "[SANALYZER INFO] Enabling %s tool in nvbit mode.\n", tool_name);
         fflush(stdout);
         return YOSEMITE_SUCCESS;
     }
@@ -53,11 +53,11 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
             tool = EVENT_TRACE;
             _tools.emplace(EVENT_TRACE, std::make_shared<EventTrace>());
         } else {
-            fprintf(stderr, "[SANITIZER ERROR] Unsupported tool in rocm mode, %s.\n", tool_name);
+            fprintf(stderr, "[SANALYZER ERROR] Unsupported tool in rocm mode, %s.\n", tool_name);
             fflush(stderr);
             return YOSEMITE_NOT_IMPLEMENTED;
         }
-        fprintf(stdout, "[SANITIZER INFO] Enabling %s tool in rocm mode.\n", tool_name);
+        fprintf(stdout, "[SANALYZER INFO] Enabling %s tool in rocm mode.\n", tool_name);
         fflush(stdout);
         return YOSEMITE_SUCCESS;
     }
@@ -93,12 +93,12 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
         tool = EVENT_TRACE_MGPU;
         _tools.emplace(EVENT_TRACE_MGPU, std::make_shared<EventTraceMGPU>());
     } else {
-        fprintf(stderr, "[SANITIZER ERROR] Tool not found.\n");
+        fprintf(stderr, "[SANALYZER ERROR] Tool not found.\n");
         fflush(stderr);
         return YOSEMITE_NOT_IMPLEMENTED;
     }
 
-    fprintf(stdout, "[SANITIZER INFO] Enabling %s tool.\n", tool_name);
+    fprintf(stdout, "[SANALYZER INFO] Enabling %s tool.\n", tool_name);
     fflush(stdout);
     return YOSEMITE_SUCCESS;
 }
@@ -118,7 +118,7 @@ YosemiteResult_t yosemite_flush() {
 
 
 YosemiteResult_t yosemite_torch_prof_enable() {
-    fprintf(stdout, "[SANITIZER INFO] Enabling torch profiler.\n");
+    fprintf(stdout, "[SANALYZER INFO] Enabling torch profiler.\n");
     fflush(stdout);
     return YOSEMITE_SUCCESS;
 }
@@ -243,7 +243,7 @@ YosemiteResult_t yosemite_init(AccelProfOptions_t& options) {
     const char* sample_rate = std::getenv("YOSEMITE_ENV_SAMPLE_RATE");
     if (sample_rate) {
         options.sample_rate = std::stoi(sample_rate);
-        fprintf(stdout, "[SANITIZER INFO] Setting sample rate to %d.\n", options.sample_rate);
+        fprintf(stdout, "[SANALYZER INFO] Setting sample rate to %d.\n", options.sample_rate);
     }
 
     fprintf(stdout, "================================================================================\n");
