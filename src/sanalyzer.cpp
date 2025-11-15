@@ -4,6 +4,9 @@
 #include "utils/event.h"
 #include "tools/code_check.h"
 #include "tools/app_metric.h"
+#include "tools/roofline_flops.h"
+#include "tools/roofline_size.h"
+#include "tools/roofline_time.h"
 #include "tools/mem_trace.h"
 #include "tools/hot_analysis.h"
 #include "tools/uvm_advisor.h"
@@ -36,6 +39,9 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
         if (std::string(tool_name) == "app_analysis") {
             tool = APP_ANALYSIS_NVBIT;
             _tools.emplace(APP_ANALYSIS_NVBIT, std::make_shared<AppAnalysisNVBIT>());
+        } else  if (std::string(tool_name) == "roofline_flops") {
+            tool = ROOFLINE_FLOPS;
+            _tools.emplace(ROOFLINE_FLOPS, std::make_shared<RooflineFlops>());
         } else {
             fprintf(stderr, "[SANALYZER ERROR] Unsupported tool in nvbit mode, %s.\n", tool_name);
             fflush(stderr);
@@ -68,6 +74,12 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
     } else if (std::string(tool_name) == "app_metric") {
         tool = APP_METRICE;
         _tools.emplace(APP_METRICE, std::make_shared<AppMetrics>());
+    } else if (std::string(tool_name) == "roofline_size") {
+        tool = ROOFLINE_SIZE;
+        _tools.emplace(ROOFLINE_SIZE, std::make_shared<RooflineSize>());
+    } else if (std::string(tool_name) == "roofline_time") {
+        tool = ROOFLINE_TIME;
+        _tools.emplace(ROOFLINE_TIME, std::make_shared<RooflineTime>());
     } else if (std::string(tool_name) == "mem_trace") {
         tool = MEM_TRACE;
         _tools.emplace(MEM_TRACE, std::make_shared<MemTrace>());
@@ -206,6 +218,13 @@ YosemiteResult_t yosemite_init(AccelProfOptions_t& options) {
     } else if (tool == APP_METRICE) {
         options.patch_name = GPU_PATCH_APP_METRIC;
         options.patch_file = "gpu_patch_app_metric.fatbin";
+    } else if (tool == ROOFLINE_FLOPS) {
+        options.patch_name = GPU_PATCH_ROOFLINE_FLOPS_NVBIT;
+    } else if (tool == ROOFLINE_SIZE) {
+        options.patch_name = GPU_PATCH_ROOFLINE_SIZE;
+        options.patch_file = "gpu_patch_roofline_size.fatbin";
+    } else if (tool == ROOFLINE_TIME) {
+       options.patch_name = GPU_NO_PATCH;
     } else if (tool == MEM_TRACE) {
         options.patch_name = GPU_PATCH_MEM_TRACE;
         options.patch_file = "gpu_patch_mem_trace.fatbin";
