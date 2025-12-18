@@ -16,7 +16,9 @@ typedef enum {
     ROOFLINE_FLOPS = 11,
     ROOFLINE_SIZE = 12,
     ROOFLINE_TIME = 13,
-    TOOL_NUMS = 14
+    HEATMAP_ANALYSIS = 14,
+    BLOCK_DIVERGENCE_ANALYSIS = 15,
+    TOOL_NUMS = 16
 } AnalysisTool_t;
 
 #endif // TOOL_TYPE_H
