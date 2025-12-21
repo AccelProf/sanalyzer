@@ -35,7 +35,7 @@ public:
 private:
     void unit_access(uint32_t warp_id, uint64_t sector_tag, uint32_t offset, uint32_t length);
     
-    void add_sector_pc_information(uint32_t sector_tag, uint64_t pc);
+    void add_sector_pc_information(uint64_t sector_tag, uint64_t pc);
 
     void kernel_start_callback(std::shared_ptr<KernelLaunch_t> kernel);
 

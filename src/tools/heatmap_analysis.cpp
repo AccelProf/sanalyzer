@@ -149,7 +149,7 @@ void HeatmapAnalysis::unit_access(uint32_t warp_id, uint64_t sector_tag, uint32_
     sector_data[17] += 1;
 }
 
-void HeatmapAnalysis::add_sector_pc_information(uint32_t sector_tag, uint64_t pc) {
+void HeatmapAnalysis::add_sector_pc_information(uint64_t sector_tag, uint64_t pc) {
     _sector_pc_information[sector_tag].insert(pc);
 }
 
@@ -168,6 +168,7 @@ void HeatmapAnalysis::gpu_data_analysis(void* data, uint64_t size) {
         }
     } 
 }
+
 void HeatmapAnalysis::evt_callback(EventPtr_t evt) {
     switch (evt->evt_type) {
         case EventType_KERNEL_LAUNCH:
