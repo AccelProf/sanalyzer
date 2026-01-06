@@ -18,6 +18,7 @@
 #include "tools/event_trace_mgpu.h"
 #include "tools/heatmap_analysis.h"
 #include "tools/block_divergence_analysis.h"
+#include "tools/pc_dependency_analysis.h"
 
 #include <memory>
 #include <map>
@@ -112,6 +113,9 @@ YosemiteResult_t yosemite_tool_enable(AnalysisTool_t& tool) {
     } else if (std::string(tool_name) == "block_divergence_analysis") {
         tool = BLOCK_DIVERGENCE_ANALYSIS;
         _tools.emplace(BLOCK_DIVERGENCE_ANALYSIS, std::make_shared<BlockDivergenceAnalysis>());
+    } else if (std::string(tool_name) == "pc_dependency_analysis") {
+        tool = PC_DEPENDENCY_ANALYSIS;
+        _tools.emplace(PC_DEPENDENCY_ANALYSIS, std::make_shared<PcDependency>());
     } else {
         fprintf(stderr, "[SANALYZER ERROR] Tool not found.\n");
         fflush(stderr);
@@ -263,6 +267,11 @@ YosemiteResult_t yosemite_init(AccelProfOptions_t& options) {
     } else if (tool == BLOCK_DIVERGENCE_ANALYSIS) {
         options.patch_name = GPU_PATCH_BLOCK_DIVERGENCE_ANALYSIS;
         options.patch_file = "gpu_patch_block_divergence_analysis.fatbin";
+    } else if (tool == PC_DEPENDENCY_ANALYSIS) {
+        options.patch_name = GPU_PATCH_PC_DEPENDENCY_ANALYSIS;
+        // nv-compute/Makefile generates fatbins based on gpu_src/*.cu filenames.
+        // The source file for this tool is nv-compute/gpu_src/gpu_patch_pc_dependency.cu
+        options.patch_file = "gpu_patch_pc_dependency.fatbin";
     }
 
     // enable torch profiler?
