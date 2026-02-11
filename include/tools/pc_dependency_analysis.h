@@ -17,6 +17,39 @@
 #include <memory>
 #include <cassert>
 
+
+#ifndef SANITIZER_MEMORY_DEVICE_FLAG_READ
+#define SANITIZER_MEMORY_DEVICE_FLAG_READ 0x1
+#endif
+
+#ifndef SANITIZER_MEMORY_DEVICE_FLAG_WRITE
+#define SANITIZER_MEMORY_DEVICE_FLAG_WRITE 0x2
+#endif
+
+#ifndef SANITIZER_MEMORY_DEVICE_FLAG_RED
+#define SANITIZER_MEMORY_DEVICE_FLAG_RED 0x3
+#endif
+
+#ifndef SANITIZER_MEMORY_DEVICE_FLAG_ATOMIC
+#define SANITIZER_MEMORY_DEVICE_FLAG_ATOMIC 0x4
+#endif
+
+#ifndef SANITIZER_MEMORY_DEVICE_FLAG_PREFETCH
+#define SANITIZER_MEMORY_DEVICE_FLAG_PREFETCH 0x8
+#endif
+
+#ifndef SANITIZER_MEMORY_GLOBAL
+#define SANITIZER_MEMORY_GLOBAL 0x10
+#endif
+
+#ifndef SANITIZER_MEMORY_SHARED
+#define SANITIZER_MEMORY_SHARED 0x20
+#endif
+
+#ifndef SANITIZER_MEMORY_LOCAL
+#define SANITIZER_MEMORY_LOCAL 0x40
+#endif
+
 namespace yosemite {
 
 /* we choose to use PC offset instead of PC because the PC is too long for shadow memory and it is not necessary to track the original PC.
@@ -83,8 +116,10 @@ public:
 class shadow_memory{
 public:
     shadow_memory(uint64_t size) 
-    : _shadow_memory_entries(std::make_unique<shadow_memory_entry[]>(size)), 
-      _size(size), 
+    :_size(size),
+    _size_celled((size + 3) / 4 * 4),
+    _stride(_size_celled / 4),
+    _shadow_memory_entries(std::make_unique<shadow_memory_entry[]>(_size_celled)), 
       _shadow_memory_bitmap(std::vector<uint8_t>((size + 7) / 8, 0)) {
         printf("[PC_DEPENDENCY] Shadow memory entries: %lu\n", size);
         printf("[PC_DEPENDENCY] Shadow memory per entry size: %lu\n", sizeof(shadow_memory_entry));
@@ -97,7 +132,9 @@ public:
     };
     shadow_memory_entry& get_entry(uint64_t offset) {
         assert(offset < _size);
-        return _shadow_memory_entries[offset];
+        //update layout: use offset/4 + offset%4 * _size/4 to make every 4 bytes adjacent in one cache line
+        return _shadow_memory_entries[(offset/4) + (offset%4) * _stride];
+        // return _shadow_memory_entries[offset];
     }
     bool is_valid(uint64_t ptr) {
         return _shadow_memory_bitmap[ptr / 8] & (1u << (ptr % 8)); 
@@ -106,6 +143,8 @@ public:
         _shadow_memory_bitmap[ptr / 8] |= (1u << (ptr % 8));
     }
     uint64_t _size;
+    uint64_t _size_celled;
+    uint64_t _stride;
     std::unique_ptr<shadow_memory_entry[]> _shadow_memory_entries;
     std::vector<uint8_t> _shadow_memory_bitmap;
 };
@@ -155,7 +194,11 @@ private:
 
     void kernel_trace_flush(std::shared_ptr<KernelLaunch_t> kernel);
 
-    void unit_access(uint64_t ptr, uint32_t pc_offset, uint64_t current_block_id, uint64_t current_warp_id, uint64_t current_lane_id, memory_region& memory_region_target, int access_size);
+    void unit_access(uint64_t ptr, uint32_t pc_offset, uint64_t current_block_id, uint32_t current_warp_id, uint32_t current_lane_id, memory_region& memory_region_target, int access_size);
+
+    void unit_access_shared(uint64_t ptr, uint32_t pc_offset, uint64_t current_block_id, uint32_t current_warp_id, uint32_t current_lane_id, int access_size);
+
+    void unit_access_local(uint64_t ptr, uint32_t pc_offset, uint64_t current_block_id, uint32_t current_warp_id, uint32_t current_lane_id, int access_size);
 
 
 /*
@@ -178,8 +221,13 @@ private:
     std::vector<memory_region> _memory_regions;
 
     std::map<memory_region, std::unique_ptr<shadow_memory>> _shadow_memories; // memory region, shadow memory
+    std::unordered_map<uint64_t, shadow_memory_entry> _shadow_memory_shared; // shared memory address (packed as block_id << 32 | address low 32 bits to reduce aliasing), shadow memory shared
     std::unordered_map<uint32_t, std::unordered_map<uint32_t, PC_statisitics>> _pc_statistics; // current pc offset, ancient pc offset, PC_statisitics
-    std::unordered_map<uint32_t, uint32_t> _pc_flags; // pc offset, flags
+    std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>> _pc_flags; // pc offset, flags, size of the access
+    // Index [0..31] stores distinct sector count 1..32.
+    // Index [32..64] stores active lane count 0..32.
+    std::unordered_map<uint32_t, std::array<uint64_t, 65>> _distinct_sector_count; // pc offset, distinct sector distribution
+
 };
 
 }   // yosemite

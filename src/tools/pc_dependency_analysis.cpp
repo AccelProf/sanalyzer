@@ -10,6 +10,7 @@
 #include <sstream>
 #include <set>
 #include <iomanip>
+#include <thread>
 
 
 using namespace yosemite;
@@ -46,6 +47,19 @@ static std::string json_escape(const std::string& s) {
 static std::string hex_u32(uint32_t v) {
     std::ostringstream oss;
     oss << "0x" << std::hex << v;
+    return oss.str();
+}
+static std::string flags_to_string(uint32_t flags) {
+    std::ostringstream oss;
+    if (flags & SANITIZER_MEMORY_DEVICE_FLAG_READ) oss << "READ";
+    if (flags & SANITIZER_MEMORY_DEVICE_FLAG_WRITE) oss << "WRITE";
+    if (flags & SANITIZER_MEMORY_DEVICE_FLAG_ATOMIC) oss << "ATOMIC";
+    if (flags & SANITIZER_MEMORY_DEVICE_FLAG_PREFETCH) oss << "PREFETCH";
+    oss << " ";
+    if (flags & SANITIZER_MEMORY_GLOBAL) oss << "GLOBAL";
+    if (flags & SANITIZER_MEMORY_SHARED) oss << "SHARED";
+    if (flags & SANITIZER_MEMORY_LOCAL) oss << "LOCAL";
+
     return oss.str();
 }
 } // namespace
@@ -105,8 +119,9 @@ void PcDependency::kernel_trace_flush(std::shared_ptr<KernelLaunch_t> kernel) {
                   [](auto& a, auto& b){ return a.first < b.first; });
 
         uint32_t flags = 0;
+        uint32_t access_size = 0;
         auto fit = _pc_flags.find(cur_pc);
-        if (fit != _pc_flags.end()) flags = fit->second;
+        if (fit != _pc_flags.end()){ flags = fit->second.first; access_size = fit->second.second;}
 
         for (auto& [anc_pc, st] : inner) {
             out << "0x" << std::hex << cur_pc
@@ -155,14 +170,37 @@ void PcDependency::kernel_trace_flush(std::shared_ptr<KernelLaunch_t> kernel) {
             first = false;
             auto fit = _pc_flags.find(pc);
             bool has_flags = (fit != _pc_flags.end());
-            uint32_t flags = has_flags ? fit->second : 0;
+            uint32_t flags = has_flags ? fit->second.first : 0;
+            uint32_t access_size = has_flags ? fit->second.second : 0;
+            bool has_distinct_sector_count = (_distinct_sector_count.find(pc) != _distinct_sector_count.end());
             jout << "    {\"pc\": " << pc
                  << ", \"pc_hex\": \"" << hex_u32(pc) << "\"";
             if (has_flags) {
-                jout << ", \"flags\": " << flags
-                     << ", \"flags_hex\": \"" << hex_u32(flags) << "\"";
+                jout << ", \"flags\": \"" << flags_to_string(flags) << "\""
+                     << ", \"flags_hex\": \"" << hex_u32(flags) << "\""
+                     << ", \"access_size\": " << access_size;
             } else {
-                jout << ", \"flags\": null, \"flags_hex\": null";
+                jout << ", \"flags\": null, \"flags_hex\": null, \"access_size\": null";
+            }
+            if (has_distinct_sector_count) {
+                jout << ", \"distinct_sector_count\": {";
+                for (int i = 1; i <= 32; i++) {
+                    jout << "\"" << i << "\": " << _distinct_sector_count[pc][i - 1];
+                    if (i != 32) {
+                        jout << ", ";
+                    }
+                }
+                jout << "}";
+                jout << ", \"active_lane_count\": {";
+                for (int i = 0; i <= 32; i++) {
+                    jout << "\"" << i << "\": " << _distinct_sector_count[pc][32 + i];
+                    if (i != 32) {
+                        jout << ", ";
+                    }
+                }
+                jout << "}";
+            } else {
+                jout << ", \"distinct_sector_count\": null, \"active_lane_count\": null";
             }
             jout << "}";
         }
@@ -188,7 +226,8 @@ void PcDependency::kernel_trace_flush(std::shared_ptr<KernelLaunch_t> kernel) {
             // current flags if available
             auto cfit = _pc_flags.find(cur_pc);
             bool has_cflags = (cfit != _pc_flags.end());
-            uint32_t cflags = has_cflags ? cfit->second : 0;
+            uint32_t cflags = has_cflags ? cfit->second.first : 0;
+            uint32_t c_access_size = has_cflags ? cfit->second.second : 0;
 
             for (auto& [anc_pc, st] : inner2) {
                 if (!first_edge) jout << ",\n";
@@ -214,7 +253,8 @@ void PcDependency::kernel_trace_flush(std::shared_ptr<KernelLaunch_t> kernel) {
 
                 if (has_cflags) {
                     jout << ", \"current_flags\": " << cflags
-                         << ", \"current_flags_hex\": \"" << hex_u32(cflags) << "\"";
+                         << ", \"current_flags_hex\": \"" << hex_u32(cflags) << "\""
+                         << ", \"current_access_size\": " << c_access_size;
                 } else {
                     jout << ", \"current_flags\": null, \"current_flags_hex\": null";
                 }
@@ -238,7 +278,8 @@ void PcDependency::kernel_trace_flush(std::shared_ptr<KernelLaunch_t> kernel) {
 void PcDependency::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
     auto evt = std::prev(kernel_events.end())->second;
     evt->end_time = _timer.get();
-
+    this->_shadow_memory_shared.clear();
+    printf("[PC_DEPENDENCY] Clearing shadow memory shared\n");
     kernel_trace_flush(evt);
 
     _timer.increment(true);
@@ -278,6 +319,9 @@ void PcDependency::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
 void PcDependency::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
     tensor_events.emplace(_timer.get(), ten);
     active_tensors.emplace(ten->addr, ten);
+    _memory_regions.push_back(memory_region((uint64_t)ten->addr, (uint64_t)(ten->addr + ten->size)));
+    _shadow_memories.emplace(_memory_regions.back(), std::make_unique<shadow_memory>(ten->size));
+    printf("[PC_DEPENDENCY] Allocating shadow memory for tensor region: %p - %p, size: %lu\n", (void*)ten->addr, (void*)(ten->addr + ten->size), ten->size);
 
     _timer.increment(true);
 }
@@ -286,12 +330,25 @@ void PcDependency::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
 void PcDependency::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
     auto it = active_tensors.find(ten->addr);
     assert(it != active_tensors.end());
+
+    // TenFree.size may be negative (e.g., accounting-style events). Use size from TenAlloc.
+    const uint64_t sz = static_cast<uint64_t>(it->second->size);
     active_tensors.erase(it);
 
+    memory_region r((uint64_t)ten->addr, (uint64_t)ten->addr + sz);
+
+    auto vit = std::find(_memory_regions.begin(), _memory_regions.end(), r);
+    if (vit != _memory_regions.end()) {
+        _memory_regions.erase(vit);
+    }
+
+    _shadow_memories.erase(r);
+    printf("[PC_DEPENDENCY] Freeing shadow memory for tensor region: %p - %p, size: %lu\n",
+           (void*)r.get_start(), (void*)r.get_end(), sz);
     _timer.increment(true);
 }
 
-void PcDependency::unit_access(uint64_t ptr, uint32_t pc_offset, uint64_t current_block_id, uint64_t current_warp_id, uint64_t current_lane_id, memory_region& memory_region_target, int access_size) {
+void PcDependency::unit_access(uint64_t ptr, uint32_t pc_offset, uint64_t current_block_id, uint32_t current_warp_id, uint32_t current_lane_id, memory_region& memory_region_target, int access_size) {
     // auto& shadow_memory = this->_shadow_memories[memory_region_target];
     auto shadow_memory_it = this->_shadow_memories.find(memory_region_target);
     if (shadow_memory_it == this->_shadow_memories.end()) {
@@ -336,42 +393,111 @@ void PcDependency::unit_access(uint64_t ptr, uint32_t pc_offset, uint64_t curren
     }
 }
 
+void PcDependency::unit_access_shared(uint64_t ptr, uint32_t pc_offset, uint64_t current_block_id, uint32_t current_warp_id, uint32_t current_lane_id, int access_size) {
+    // 共享内存地址在同一个 block 内唯一，使用 block_id 高位 + 地址低 32 位作为 key，
+    const uint64_t packed_base = ((current_block_id & 0xFFFFFFFFull) << 32)
+                                 | (ptr & 0xFFFFFFFFull);
+
+    for (int i = 0; i < access_size; i += 4) {
+        const uint64_t addr = packed_base + i;  // 4 字节粒度
+
+        auto it = this->_shadow_memory_shared.find(addr);
+        if (it == this->_shadow_memory_shared.end()) {
+            // cold miss
+            this->_pc_statistics[pc_offset][0xFFFFFFFF].dist[0] += 1;
+            auto& entry = this->_shadow_memory_shared.emplace(addr, shadow_memory_entry()).first->second;
+            entry.last_pc = pc_offset;
+            entry.last_flat_thread_id = (current_warp_id << 5) | current_lane_id; // 只编码 warp/lane
+            continue;
+        }
+
+        auto& entry = it->second;
+        const uint64_t last_warp_id = (entry.last_flat_thread_id >> 5) & 0x1F;
+        const uint64_t last_lane_id = entry.last_flat_thread_id & 0x1F;
+        const uint32_t last_pc = entry.last_pc;
+
+        if (last_warp_id != current_warp_id) {
+            // 不同 warp 同 block
+            this->_pc_statistics[pc_offset][last_pc].dist[2] += 1;
+        } else if (last_lane_id != current_lane_id) {
+            // 同 warp 不同 lane
+            this->_pc_statistics[pc_offset][last_pc].dist[1] += 1;
+        } else {
+            // 同一线程
+            this->_pc_statistics[pc_offset][last_pc].dist[0] += 1;
+        }
+
+        entry.last_pc = pc_offset;
+        entry.last_flat_thread_id = (current_warp_id << 5) | current_lane_id;
+    }
+}
+
+void PcDependency::unit_access_local(uint64_t ptr, uint32_t pc_offset, uint64_t current_block_id, uint32_t current_warp_id, uint32_t current_lane_id, int access_size) {
+    // TODO: implement local memory access
+}
+
 
 void PcDependency::gpu_data_analysis(void* data, uint64_t size) {
     MemoryAccess* accesses_buffer = (MemoryAccess*)data;
     for (uint64_t i = 0; i < size; i++) {
         MemoryAccess trace = accesses_buffer[i];
         uint32_t pc_offset = trace.pc;
-        this->_pc_flags[pc_offset] = trace.flags;
-        if (trace.type != MemoryType::Global) {
-            //only analyze global memory accesses currently
-            continue;
-        }
+        uint32_t flags = trace.flags;
         uint32_t access_size = trace.accessSize;
-        memory_region memory_region_target;
-        uint64_t first_valid_address = 0;
-
-        for (int j = 0; j < GPU_WARP_SIZE; j++) {
-            if (trace.active_mask & (1u << j)) {
-                first_valid_address = trace.addresses[j];
+        uint32_t distinct_sector_count = trace.distinct_sector_count;
+        uint32_t active_mask = trace.active_mask;
+        switch (trace.type) {
+            case MemoryType::Local:{
+                    flags |= SANITIZER_MEMORY_LOCAL;
+                    break;
+                }
+            case MemoryType::Shared:{
+                    flags |= SANITIZER_MEMORY_SHARED;
+                    for (int j = 0; j < GPU_WARP_SIZE; j++) {
+                        if (active_mask & (1u << j)) {
+                            unit_access_shared(trace.addresses[j], pc_offset, trace.ctaId, trace.warpId, j, trace.accessSize);
+                        }
+                    }
+                    break;
+                }
+            case MemoryType::Global:{
+                    flags |= SANITIZER_MEMORY_GLOBAL;
+                    memory_region memory_region_target;
+                    uint64_t first_valid_address = 0;
+                    for (int j = 0; j < GPU_WARP_SIZE; j++) {
+                        if (active_mask & (1u << j)) {
+                            first_valid_address = trace.addresses[j];
+                            break;
+                        }
+                    }
+                    assert(first_valid_address != 0);
+                    for (auto memory_region_iter : this->_memory_regions) {
+                        if (memory_region_iter.contains(first_valid_address)) {
+                            memory_region_target = memory_region_iter;
+                            break;
+                        }
+                    }
+                    uint64_t memory_region_start = memory_region_target.get_start();
+                    assert(memory_region_start != 0);
+                    for ( int j = 0; j < GPU_WARP_SIZE; j++) {
+                        if (active_mask & (1u << j)) {
+                            unit_access(trace.addresses[j] - memory_region_start, pc_offset, trace.ctaId, trace.warpId, j, memory_region_target, access_size);
+                        }
+                    }
+                    break;
+                }
+            default:
+                printf("unknown memory type\n");
                 break;
-            }
         }
-        
-        
-        assert(first_valid_address != 0);
-        for (auto memory_region_iter : this->_memory_regions) {
-            if (memory_region_iter.contains(first_valid_address)) {
-                memory_region_target = memory_region_iter;
-                break;
-            }
+        this->_pc_flags[pc_offset] = std::make_pair(flags, access_size);
+        // Defensive bounds checks: GPU side should produce [1, 32].
+        if (distinct_sector_count >= 1 && distinct_sector_count <= 32) {
+            this->_distinct_sector_count[pc_offset][distinct_sector_count - 1] += 1;
         }
-        uint64_t memory_region_start = memory_region_target.get_start();
-        assert(memory_region_start != 0);
-        for ( int j = 0; j < GPU_WARP_SIZE; j++) {
-            if (trace.active_mask & (1u << j)) {
-                unit_access(trace.addresses[j] - memory_region_start, pc_offset, trace.ctaId, trace.warpId, j, memory_region_target, access_size);
-            }
+        const uint32_t active_lane_count = __builtin_popcount(active_mask);
+        if (active_lane_count <= 32) {
+            this->_distinct_sector_count[pc_offset][32 + active_lane_count] += 1;
         }
     }
 
