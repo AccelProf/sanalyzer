@@ -16,6 +16,11 @@
 #include <string>
 #include <memory>
 #include <cassert>
+#include <mutex>
+#include <thread>
+#include <condition_variable>
+#include <cstring>
+#include <sys/mman.h>
 
 
 #ifndef SANITIZER_MEMORY_DEVICE_FLAG_READ
@@ -104,13 +109,14 @@ private:
     uint64_t end;
 };
 
-class shadow_memory_entry{
+class alignas(8) shadow_memory_entry{
 public:
     shadow_memory_entry() {};
     ~shadow_memory_entry() {};
-
-    uint32_t last_pc = 0xFFFFFFFFu; // using offset of pc instead of original pc to save space and keep alignment;
-    uint32_t last_flat_thread_id = 0xFFFFFFFFu; // 0-5 bits for lane id, 6-10 bits for warp id, 11-31 bits for block id to save space;
+    // Packed representation: low 32 bits = last_pc, high 32 bits = last_flat_thread_id.
+    // Keeping a single 64-bit field avoids type-punning UB in atomic exchange.
+    // packed == 0 means invalid/uninitialized (cold).
+    uint64_t packed = 0;
 };
 
 class shadow_memory{
@@ -119,16 +125,26 @@ public:
     :_size(size),
     _size_celled((size + 3) / 4 * 4),
     _stride(_size_celled / 4),
-    _shadow_memory_entries(std::make_unique<shadow_memory_entry[]>(_size_celled)), 
-      _shadow_memory_bitmap(std::vector<uint8_t>((size + 7) / 8, 0)) {
+    _entries_bytes(std::max<uint64_t>(1, _size_celled * sizeof(shadow_memory_entry))) {
+        _shadow_memory_entries = static_cast<shadow_memory_entry*>(
+            mmap(nullptr, _entries_bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0)
+        );
+        assert(_shadow_memory_entries != MAP_FAILED);
+
         printf("[PC_DEPENDENCY] Shadow memory entries: %lu\n", size);
         printf("[PC_DEPENDENCY] Shadow memory per entry size: %lu\n", sizeof(shadow_memory_entry));
         printf("[PC_DEPENDENCY] Shadow memory size: %lu\n", size*sizeof(shadow_memory_entry));
-        printf("[PC_DEPENDENCY] Shadow memory bitmap size: %lu\n", _shadow_memory_bitmap.size());
       };
-    ~shadow_memory() = default;
-    void reset_bitmap() {
-        std::fill(_shadow_memory_bitmap.begin(), _shadow_memory_bitmap.end(), 0);
+    ~shadow_memory() {
+        if (_shadow_memory_entries != nullptr && _shadow_memory_entries != MAP_FAILED) {
+            munmap(_shadow_memory_entries, _entries_bytes);
+            _shadow_memory_entries = nullptr;
+        }
+    }
+    void reset_entries() {
+        if (madvise(_shadow_memory_entries, _entries_bytes, MADV_DONTNEED) != 0) {
+            std::memset(_shadow_memory_entries, 0, _entries_bytes);
+        }
     };
     shadow_memory_entry& get_entry(uint64_t offset) {
         assert(offset < _size);
@@ -136,17 +152,11 @@ public:
         return _shadow_memory_entries[(offset/4) + (offset%4) * _stride];
         // return _shadow_memory_entries[offset];
     }
-    bool is_valid(uint64_t ptr) {
-        return _shadow_memory_bitmap[ptr / 8] & (1u << (ptr % 8)); 
-    }
-    void set_valid(uint64_t ptr) {
-        _shadow_memory_bitmap[ptr / 8] |= (1u << (ptr % 8));
-    }
     uint64_t _size;
     uint64_t _size_celled;
     uint64_t _stride;
-    std::unique_ptr<shadow_memory_entry[]> _shadow_memory_entries;
-    std::vector<uint8_t> _shadow_memory_bitmap;
+    uint64_t _entries_bytes;
+    shadow_memory_entry* _shadow_memory_entries = nullptr;
 };
 
 
@@ -194,11 +204,30 @@ private:
 
     void kernel_trace_flush(std::shared_ptr<KernelLaunch_t> kernel);
 
-    void unit_access(uint64_t ptr, uint32_t pc_offset, uint64_t current_block_id, uint32_t current_warp_id, uint32_t current_lane_id, memory_region& memory_region_target, int access_size);
+    void unit_access(
+        uint64_t ptr,
+        uint32_t pc_offset,
+        uint64_t current_block_id,
+        uint32_t current_warp_id,
+        uint32_t current_lane_id,
+        memory_region& memory_region_target,
+        int access_size,
+        std::unordered_map<uint32_t, std::unordered_map<uint32_t, PC_statisitics>>& local_pc_statistics
+    );
 
-    void unit_access_shared(uint64_t ptr, uint32_t pc_offset, uint64_t current_block_id, uint32_t current_warp_id, uint32_t current_lane_id, int access_size);
+    void unit_access_shared(
+        uint64_t ptr,
+        uint32_t pc_offset,
+        uint64_t current_block_id,
+        uint32_t current_warp_id,
+        uint32_t current_lane_id,
+        int access_size,
+        std::unordered_map<uint32_t, std::unordered_map<uint32_t, PC_statisitics>>& local_pc_statistics,
+        std::unordered_map<uint64_t, shadow_memory_entry>& local_shadow_memory_shared
+    );
 
     void unit_access_local(uint64_t ptr, uint32_t pc_offset, uint64_t current_block_id, uint32_t current_warp_id, uint32_t current_lane_id, int access_size);
+    void worker_loop(uint64_t worker_idx);
 
 
 /*
@@ -221,12 +250,30 @@ private:
     std::vector<memory_region> _memory_regions;
 
     std::map<memory_region, std::unique_ptr<shadow_memory>> _shadow_memories; // memory region, shadow memory
-    std::unordered_map<uint64_t, shadow_memory_entry> _shadow_memory_shared; // shared memory address (packed as block_id << 32 | address low 32 bits to reduce aliasing), shadow memory shared
     std::unordered_map<uint32_t, std::unordered_map<uint32_t, PC_statisitics>> _pc_statistics; // current pc offset, ancient pc offset, PC_statisitics
     std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>> _pc_flags; // pc offset, flags, size of the access
     // Index [0..31] stores distinct sector count 1..32.
     // Index [32..64] stores active lane count 0..32.
     std::unordered_map<uint32_t, std::array<uint64_t, 65>> _distinct_sector_count; // pc offset, distinct sector distribution
+
+    // Persistent worker pool and per-worker shared-memory shadow state.
+    uint64_t _worker_count = 1;
+    std::vector<std::thread> _workers;
+    std::vector<std::unordered_map<uint64_t, shadow_memory_entry>> _worker_shadow_memory_shared;
+
+    // Per-batch job data produced by gpu_data_analysis and consumed by workers.
+    const MemoryAccess* _job_accesses_buffer = nullptr;
+    std::vector<std::vector<uint64_t>> _job_worker_trace_indices;
+    std::vector<std::unordered_map<uint32_t, std::unordered_map<uint32_t, PC_statisitics>>> _job_worker_pc_statistics;
+    std::vector<std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>> _job_worker_pc_flags;
+    std::vector<std::unordered_map<uint32_t, std::array<uint64_t, 65>>> _job_worker_distinct_sector_count;
+
+    std::mutex _worker_pool_mutex;
+    std::condition_variable _worker_pool_cv;
+    std::condition_variable _worker_pool_done_cv;
+    bool _worker_pool_shutdown = false;
+    uint64_t _worker_job_generation = 0;
+    uint64_t _worker_pending_jobs = 0;
 
 };
 

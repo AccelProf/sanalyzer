@@ -11,6 +11,7 @@
 #include <set>
 #include <iomanip>
 #include <thread>
+#include <atomic>
 
 
 using namespace yosemite;
@@ -62,6 +63,18 @@ static std::string flags_to_string(uint32_t flags) {
 
     return oss.str();
 }
+
+static inline uint64_t pack_shadow_entry(uint32_t pc, uint32_t flat_thread_id) {
+    return (static_cast<uint64_t>(flat_thread_id) << 32) | static_cast<uint64_t>(pc);
+}
+
+static inline uint32_t unpack_shadow_pc(uint64_t packed) {
+    return static_cast<uint32_t>(packed & 0xFFFFFFFFu);
+}
+
+static inline uint32_t unpack_shadow_flat_tid(uint64_t packed) {
+    return static_cast<uint32_t>(packed >> 32);
+}
 } // namespace
 
 
@@ -80,10 +93,33 @@ PcDependency::PcDependency() : Tool(PC_DEPENDENCY_ANALYSIS) {
         output_directory = "dependency_" + get_current_date_n_time();
     }
     check_folder_existance(output_directory);
+
+    _worker_count = std::max(1u, std::thread::hardware_concurrency());
+    _worker_shadow_memory_shared.resize(_worker_count);
+    _job_worker_trace_indices.resize(_worker_count);
+    _job_worker_pc_statistics.resize(_worker_count);
+    _job_worker_pc_flags.resize(_worker_count);
+    _job_worker_distinct_sector_count.resize(_worker_count);
+    _workers.reserve(_worker_count);
+    for (uint64_t worker_idx = 0; worker_idx < _worker_count; ++worker_idx) {
+        _workers.emplace_back(&PcDependency::worker_loop, this, worker_idx);
+    }
 }
 
 
-PcDependency::~PcDependency() {}
+PcDependency::~PcDependency() {
+    {
+        std::lock_guard<std::mutex> guard(_worker_pool_mutex);
+        _worker_pool_shutdown = true;
+        ++_worker_job_generation;
+    }
+    _worker_pool_cv.notify_all();
+    for (auto& worker : _workers) {
+        if (worker.joinable()) {
+            worker.join();
+        }
+    }
+}
 
 
 void PcDependency::kernel_start_callback(std::shared_ptr<KernelLaunch_t> kernel) {
@@ -92,10 +128,14 @@ void PcDependency::kernel_start_callback(std::shared_ptr<KernelLaunch_t> kernel)
     kernel_events.emplace(_timer.get(), kernel);
     _pc_statistics.clear();
     _pc_flags.clear();
-    for (auto& shadow_memory_iter : _shadow_memories) {
-        shadow_memory_iter.second->reset_bitmap();
+    _distinct_sector_count.clear();
+    for (auto& shared_map : _worker_shadow_memory_shared) {
+        shared_map.clear();
     }
-    printf("[PC_DEPENDENCY] Resetting shadow memory bitmap\n");
+    for (auto& shadow_memory_iter : _shadow_memories) {
+        shadow_memory_iter.second->reset_entries();
+    }
+    printf("[PC_DEPENDENCY] Resetting shadow memory entries\n");
     _timer.increment(true);
 }
 
@@ -158,7 +198,7 @@ void PcDependency::kernel_trace_flush(std::shared_ptr<KernelLaunch_t> kernel) {
         nodes.insert(cur_pc);
         for (const auto& [anc_pc, st] : inner_map) {
             (void)st;
-            if (anc_pc != 0xFFFFFFFFu) nodes.insert(anc_pc);
+            if (anc_pc != 0u) nodes.insert(anc_pc);
         }
     }
 
@@ -233,7 +273,7 @@ void PcDependency::kernel_trace_flush(std::shared_ptr<KernelLaunch_t> kernel) {
                 if (!first_edge) jout << ",\n";
                 first_edge = false;
 
-                bool cold_miss = (anc_pc == 0xFFFFFFFFu);
+                bool cold_miss = (anc_pc == 0u);
 
                 jout << "    {\"current_pc\": " << cur_pc
                      << ", \"current_pc_hex\": \"" << hex_u32(cur_pc) << "\""
@@ -278,7 +318,9 @@ void PcDependency::kernel_trace_flush(std::shared_ptr<KernelLaunch_t> kernel) {
 void PcDependency::kernel_end_callback(std::shared_ptr<KernelEnd_t> kernel) {
     auto evt = std::prev(kernel_events.end())->second;
     evt->end_time = _timer.get();
-    this->_shadow_memory_shared.clear();
+    for (auto& shared_map : _worker_shadow_memory_shared) {
+        shared_map.clear();
+    }
     printf("[PC_DEPENDENCY] Clearing shadow memory shared\n");
     kernel_trace_flush(evt);
 
@@ -348,7 +390,16 @@ void PcDependency::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
     _timer.increment(true);
 }
 
-void PcDependency::unit_access(uint64_t ptr, uint32_t pc_offset, uint64_t current_block_id, uint32_t current_warp_id, uint32_t current_lane_id, memory_region& memory_region_target, int access_size) {
+void PcDependency::unit_access(
+    uint64_t ptr,
+    uint32_t pc_offset,
+    uint64_t current_block_id,
+    uint32_t current_warp_id,
+    uint32_t current_lane_id,
+    memory_region& memory_region_target,
+    int access_size,
+    std::unordered_map<uint32_t, std::unordered_map<uint32_t, PC_statisitics>>& local_pc_statistics
+) {
     // auto& shadow_memory = this->_shadow_memories[memory_region_target];
     auto shadow_memory_it = this->_shadow_memories.find(memory_region_target);
     if (shadow_memory_it == this->_shadow_memories.end()) {
@@ -356,79 +407,94 @@ void PcDependency::unit_access(uint64_t ptr, uint32_t pc_offset, uint64_t curren
         return;
     }
     auto& shadow_memory = *(shadow_memory_it->second);
+    const uint32_t current_flat_thread_id =
+        static_cast<uint32_t>((current_block_id << 10) | (current_warp_id << 5) | current_lane_id);
 
     for (int i = 0; i < access_size; i += 4) {
-        auto addr = ptr + i;
+        const uint64_t addr = ptr + i;
         // Byte-granularity shadow memory: addr is byte offset within allocation.
         // Bound check to avoid OOB on allocations at end boundary or odd sizes.
         if (addr >= shadow_memory._size) {
             break;
         }
-        if (shadow_memory.is_valid(addr) == false) {
-            // cold miss
-            _pc_statistics[pc_offset][0xFFFFFFFF].dist[0] += 1;
-            shadow_memory.set_valid(addr);
-            auto& shadow_memory_entry = shadow_memory.get_entry(addr);
-            shadow_memory_entry.last_pc = pc_offset;
-            shadow_memory_entry.last_flat_thread_id = (current_block_id << 10) | (current_warp_id << 5) | current_lane_id;
+
+        auto& entry = shadow_memory.get_entry(addr);
+        const uint64_t old_packed = __atomic_exchange_n(
+            &entry.packed,
+            pack_shadow_entry(pc_offset, current_flat_thread_id),
+            __ATOMIC_ACQ_REL
+        );
+        const bool is_cold_miss = (old_packed == 0);
+
+        if (is_cold_miss) {
+            local_pc_statistics[pc_offset][0].dist[0] += 1;
             continue;
         }
-        auto& last_access = shadow_memory.get_entry(addr);
-        uint64_t last_block_id = last_access.last_flat_thread_id >> 10;
-        uint64_t last_warp_id = (last_access.last_flat_thread_id >> 5) & 0x1F;
-        uint64_t last_lane_id = last_access.last_flat_thread_id & 0x1F;
 
-        uint32_t last_pc = last_access.last_pc;
+        const uint32_t last_pc = unpack_shadow_pc(old_packed);
+        const uint32_t last_flat_thread_id = unpack_shadow_flat_tid(old_packed);
+        const uint64_t last_block_id = static_cast<uint64_t>(last_flat_thread_id >> 10);
+        const uint64_t last_warp_id = static_cast<uint64_t>((last_flat_thread_id >> 5) & 0x1F);
+        const uint64_t last_lane_id = static_cast<uint64_t>(last_flat_thread_id & 0x1F);
         if (last_block_id != current_block_id) {
-            this->_pc_statistics[pc_offset][last_pc].dist[3] += 1;
-        }else if (last_warp_id != current_warp_id) {
-            this->_pc_statistics[pc_offset][last_pc].dist[2] += 1;
-        }else if (last_lane_id != current_lane_id) {
-            this->_pc_statistics[pc_offset][last_pc].dist[1] += 1;
-        }else {
-            this->_pc_statistics[pc_offset][last_pc].dist[0] += 1;
+            local_pc_statistics[pc_offset][last_pc].dist[3] += 1;
+        } else if (last_warp_id != current_warp_id) {
+            local_pc_statistics[pc_offset][last_pc].dist[2] += 1;
+        } else if (last_lane_id != current_lane_id) {
+            local_pc_statistics[pc_offset][last_pc].dist[1] += 1;
+        } else {
+            local_pc_statistics[pc_offset][last_pc].dist[0] += 1;
         }
-        last_access.last_pc = pc_offset;
-        last_access.last_flat_thread_id = (current_block_id << 10) | (current_warp_id << 5) | current_lane_id;
     }
 }
 
-void PcDependency::unit_access_shared(uint64_t ptr, uint32_t pc_offset, uint64_t current_block_id, uint32_t current_warp_id, uint32_t current_lane_id, int access_size) {
+void PcDependency::unit_access_shared(
+    uint64_t ptr,
+    uint32_t pc_offset,
+    uint64_t current_block_id,
+    uint32_t current_warp_id,
+    uint32_t current_lane_id,
+    int access_size,
+    std::unordered_map<uint32_t, std::unordered_map<uint32_t, PC_statisitics>>& local_pc_statistics,
+    std::unordered_map<uint64_t, shadow_memory_entry>& local_shadow_memory_shared
+) {
     // 共享内存地址在同一个 block 内唯一，使用 block_id 高位 + 地址低 32 位作为 key，
     const uint64_t packed_base = ((current_block_id & 0xFFFFFFFFull) << 32)
                                  | (ptr & 0xFFFFFFFFull);
 
     for (int i = 0; i < access_size; i += 4) {
         const uint64_t addr = packed_base + i;  // 4 字节粒度
+        const uint32_t current_flat_thread_id =
+            static_cast<uint32_t>((current_warp_id << 5) | current_lane_id);
 
-        auto it = this->_shadow_memory_shared.find(addr);
-        if (it == this->_shadow_memory_shared.end()) {
-            // cold miss
-            this->_pc_statistics[pc_offset][0xFFFFFFFF].dist[0] += 1;
-            auto& entry = this->_shadow_memory_shared.emplace(addr, shadow_memory_entry()).first->second;
-            entry.last_pc = pc_offset;
-            entry.last_flat_thread_id = (current_warp_id << 5) | current_lane_id; // 只编码 warp/lane
+        auto [it, inserted] = local_shadow_memory_shared.emplace(addr, shadow_memory_entry());
+        const bool is_cold_miss = inserted;
+        const uint64_t old_packed = __atomic_exchange_n(
+            &(it->second.packed),
+            pack_shadow_entry(pc_offset, current_flat_thread_id),
+            __ATOMIC_ACQ_REL
+        );
+
+        if (is_cold_miss) {
+            local_pc_statistics[pc_offset][0].dist[0] += 1;
             continue;
         }
 
-        auto& entry = it->second;
-        const uint64_t last_warp_id = (entry.last_flat_thread_id >> 5) & 0x1F;
-        const uint64_t last_lane_id = entry.last_flat_thread_id & 0x1F;
-        const uint32_t last_pc = entry.last_pc;
+        const uint32_t last_pc = unpack_shadow_pc(old_packed);
+        const uint32_t last_flat_thread_id = unpack_shadow_flat_tid(old_packed);
+        const uint64_t last_warp_id = static_cast<uint64_t>((last_flat_thread_id >> 5) & 0x1F);
+        const uint64_t last_lane_id = static_cast<uint64_t>(last_flat_thread_id & 0x1F);
 
         if (last_warp_id != current_warp_id) {
             // 不同 warp 同 block
-            this->_pc_statistics[pc_offset][last_pc].dist[2] += 1;
+            local_pc_statistics[pc_offset][last_pc].dist[2] += 1;
         } else if (last_lane_id != current_lane_id) {
             // 同 warp 不同 lane
-            this->_pc_statistics[pc_offset][last_pc].dist[1] += 1;
+            local_pc_statistics[pc_offset][last_pc].dist[1] += 1;
         } else {
             // 同一线程
-            this->_pc_statistics[pc_offset][last_pc].dist[0] += 1;
+            local_pc_statistics[pc_offset][last_pc].dist[0] += 1;
         }
-
-        entry.last_pc = pc_offset;
-        entry.last_flat_thread_id = (current_warp_id << 5) | current_lane_id;
     }
 }
 
@@ -437,67 +503,201 @@ void PcDependency::unit_access_local(uint64_t ptr, uint32_t pc_offset, uint64_t 
 }
 
 
+void PcDependency::worker_loop(uint64_t worker_idx) {
+    uint64_t seen_generation = 0;
+    while (true) {
+        uint64_t current_generation = 0;
+        {
+            std::unique_lock<std::mutex> lock(_worker_pool_mutex);
+            _worker_pool_cv.wait(lock, [&]{
+                return _worker_pool_shutdown || _worker_job_generation > seen_generation;
+            });
+            if (_worker_pool_shutdown) {
+                return;
+            }
+            current_generation = _worker_job_generation;
+        }
+
+        auto& local_pc_statistics = _job_worker_pc_statistics[worker_idx];
+        auto& local_pc_flags = _job_worker_pc_flags[worker_idx];
+        auto& local_distinct_sector_count = _job_worker_distinct_sector_count[worker_idx];
+        auto& local_shadow_memory_shared = _worker_shadow_memory_shared[worker_idx];
+        const auto& trace_indices = _job_worker_trace_indices[worker_idx];
+
+        for (uint64_t i : trace_indices) {
+            MemoryAccess trace = _job_accesses_buffer[i];
+            uint32_t pc_offset = trace.pc;
+            uint32_t flags = trace.flags;
+            uint32_t access_size = trace.accessSize;
+            uint32_t distinct_sector_count = trace.distinct_sector_count;
+            uint32_t active_mask = trace.active_mask;
+            switch (trace.type) {
+                case MemoryType::Local:{
+                        flags |= SANITIZER_MEMORY_LOCAL;
+                        break;
+                    }
+                case MemoryType::Shared:{
+                        flags |= SANITIZER_MEMORY_SHARED;
+                        for (int j = 0; j < GPU_WARP_SIZE; j++) {
+                            if (active_mask & (1u << j)) {
+                                unit_access_shared(
+                                    trace.addresses[j],
+                                    pc_offset,
+                                    trace.ctaId,
+                                    trace.warpId,
+                                    j,
+                                    trace.accessSize,
+                                    local_pc_statistics,
+                                    local_shadow_memory_shared
+                                );
+                            }
+                        }
+                        break;
+                    }
+                case MemoryType::Global:{
+                        flags |= SANITIZER_MEMORY_GLOBAL;
+                        memory_region memory_region_target;
+                        uint64_t first_valid_address = 0;
+                        for (int j = 0; j < GPU_WARP_SIZE; j++) {
+                            if (active_mask & (1u << j)) {
+                                first_valid_address = trace.addresses[j];
+                                break;
+                            }
+                        }
+                        assert(first_valid_address != 0);
+                        for (auto memory_region_iter : this->_memory_regions) {
+                            if (memory_region_iter.contains(first_valid_address)) {
+                                memory_region_target = memory_region_iter;
+                                break;
+                            }
+                        }
+                        uint64_t memory_region_start = memory_region_target.get_start();
+                        assert(memory_region_start != 0);
+                        for ( int j = 0; j < GPU_WARP_SIZE; j++) {
+                            if (active_mask & (1u << j)) {
+                                unit_access(
+                                    trace.addresses[j] - memory_region_start,
+                                    pc_offset,
+                                    trace.ctaId,
+                                    trace.warpId,
+                                    j,
+                                    memory_region_target,
+                                    access_size,
+                                    local_pc_statistics
+                                );
+                            }
+                        }
+                        break;
+                    }
+                default:
+                    printf("unknown memory type\n");
+                    break;
+            }
+            auto& local_flag = local_pc_flags[pc_offset];
+            local_flag.first |= flags;
+            if (local_flag.second == 0) {
+                local_flag.second = access_size;
+            } else if (local_flag.second != access_size) {
+                local_flag.second = std::max(local_flag.second, access_size);
+            }
+            if (distinct_sector_count >= 1 && distinct_sector_count <= 32) {
+                local_distinct_sector_count[pc_offset][distinct_sector_count - 1] += 1;
+            }
+            const uint32_t active_lane_count = __builtin_popcount(active_mask);
+            if (active_lane_count <= 32) {
+                local_distinct_sector_count[pc_offset][32 + active_lane_count] += 1;
+            }
+        }
+
+        {
+            std::lock_guard<std::mutex> guard(_worker_pool_mutex);
+            seen_generation = current_generation;
+            if (!trace_indices.empty()) {
+                assert(_worker_pending_jobs > 0);
+                _worker_pending_jobs -= 1;
+                if (_worker_pending_jobs == 0) {
+                    _worker_pool_done_cv.notify_one();
+                }
+            }
+        }
+    }
+}
+
+
 void PcDependency::gpu_data_analysis(void* data, uint64_t size) {
     MemoryAccess* accesses_buffer = (MemoryAccess*)data;
-    for (uint64_t i = 0; i < size; i++) {
-        MemoryAccess trace = accesses_buffer[i];
-        uint32_t pc_offset = trace.pc;
-        uint32_t flags = trace.flags;
-        uint32_t access_size = trace.accessSize;
-        uint32_t distinct_sector_count = trace.distinct_sector_count;
-        uint32_t active_mask = trace.active_mask;
-        switch (trace.type) {
-            case MemoryType::Local:{
-                    flags |= SANITIZER_MEMORY_LOCAL;
-                    break;
-                }
-            case MemoryType::Shared:{
-                    flags |= SANITIZER_MEMORY_SHARED;
-                    for (int j = 0; j < GPU_WARP_SIZE; j++) {
-                        if (active_mask & (1u << j)) {
-                            unit_access_shared(trace.addresses[j], pc_offset, trace.ctaId, trace.warpId, j, trace.accessSize);
-                        }
-                    }
-                    break;
-                }
-            case MemoryType::Global:{
-                    flags |= SANITIZER_MEMORY_GLOBAL;
-                    memory_region memory_region_target;
-                    uint64_t first_valid_address = 0;
-                    for (int j = 0; j < GPU_WARP_SIZE; j++) {
-                        if (active_mask & (1u << j)) {
-                            first_valid_address = trace.addresses[j];
-                            break;
-                        }
-                    }
-                    assert(first_valid_address != 0);
-                    for (auto memory_region_iter : this->_memory_regions) {
-                        if (memory_region_iter.contains(first_valid_address)) {
-                            memory_region_target = memory_region_iter;
-                            break;
-                        }
-                    }
-                    uint64_t memory_region_start = memory_region_target.get_start();
-                    assert(memory_region_start != 0);
-                    for ( int j = 0; j < GPU_WARP_SIZE; j++) {
-                        if (active_mask & (1u << j)) {
-                            unit_access(trace.addresses[j] - memory_region_start, pc_offset, trace.ctaId, trace.warpId, j, memory_region_target, access_size);
-                        }
-                    }
-                    break;
-                }
-            default:
-                printf("unknown memory type\n");
-                break;
+    if (size == 0) {
+        return;
+    }
+
+    for (uint64_t worker_idx = 0; worker_idx < _worker_count; ++worker_idx) {
+        _job_worker_trace_indices[worker_idx].clear();
+        _job_worker_pc_statistics[worker_idx].clear();
+        _job_worker_pc_flags[worker_idx].clear();
+        _job_worker_distinct_sector_count[worker_idx].clear();
+        _job_worker_trace_indices[worker_idx].reserve((size / _worker_count) + 1);
+    }
+
+    // Stable assignment by block id keeps intra-block trace order.
+    for (uint64_t i = 0; i < size; ++i) {
+        const uint64_t worker_idx = accesses_buffer[i].ctaId % _worker_count;
+        _job_worker_trace_indices[worker_idx].push_back(i);
+    }
+
+    uint64_t pending_jobs = 0;
+    for (uint64_t worker_idx = 0; worker_idx < _worker_count; ++worker_idx) {
+        if (!_job_worker_trace_indices[worker_idx].empty()) {
+            pending_jobs += 1;
         }
-        this->_pc_flags[pc_offset] = std::make_pair(flags, access_size);
-        // Defensive bounds checks: GPU side should produce [1, 32].
-        if (distinct_sector_count >= 1 && distinct_sector_count <= 32) {
-            this->_distinct_sector_count[pc_offset][distinct_sector_count - 1] += 1;
+    }
+    if (pending_jobs == 0) {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex> guard(_worker_pool_mutex);
+        _job_accesses_buffer = accesses_buffer;
+        _worker_pending_jobs = pending_jobs;
+        ++_worker_job_generation;
+    }
+    _worker_pool_cv.notify_all();
+    {
+        std::unique_lock<std::mutex> lock(_worker_pool_mutex);
+        _worker_pool_done_cv.wait(lock, [&]{
+            return _worker_pending_jobs == 0;
+        });
+    }
+
+    for (auto& local_flags_map : _job_worker_pc_flags) {
+        for (auto& [pc, local_flag] : local_flags_map) {
+            auto& global_flag = this->_pc_flags[pc];
+            global_flag.first |= local_flag.first;
+            if (global_flag.second == 0) {
+                global_flag.second = local_flag.second;
+            } else if (global_flag.second != local_flag.second) {
+                global_flag.second = std::max(global_flag.second, local_flag.second);
+            }
         }
-        const uint32_t active_lane_count = __builtin_popcount(active_mask);
-        if (active_lane_count <= 32) {
-            this->_distinct_sector_count[pc_offset][32 + active_lane_count] += 1;
+    }
+
+    for (auto& local_distinct_map : _job_worker_distinct_sector_count) {
+        for (auto& [pc, local_hist] : local_distinct_map) {
+            auto& global_hist = this->_distinct_sector_count[pc];
+            for (size_t idx = 0; idx < global_hist.size(); ++idx) {
+                global_hist[idx] += local_hist[idx];
+            }
+        }
+    }
+
+    for (auto& local_map : _job_worker_pc_statistics) {
+        for (auto& [cur_pc, local_inner] : local_map) {
+            auto& global_inner = this->_pc_statistics[cur_pc];
+            for (auto& [anc_pc, local_stats] : local_inner) {
+                auto& global_stats = global_inner[anc_pc];
+                for (int d = 0; d < 4; ++d) {
+                    global_stats.dist[d] += local_stats.dist[d];
+                }
+            }
         }
     }
 
