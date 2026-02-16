@@ -64,16 +64,37 @@ static std::string flags_to_string(uint32_t flags) {
     return oss.str();
 }
 
-static inline uint64_t pack_shadow_entry(uint32_t pc, uint32_t flat_thread_id) {
-    return (static_cast<uint64_t>(flat_thread_id) << 32) | static_cast<uint64_t>(pc);
+static inline uint64_t pack_shadow_entry(uint8_t generation, uint32_t pc24, uint32_t flat_thread_id) {
+    const uint32_t encoded_pc = (static_cast<uint32_t>(generation) << 24)
+                              | (pc24 & 0x00FFFFFFu);
+    return (static_cast<uint64_t>(flat_thread_id) << 32) | static_cast<uint64_t>(encoded_pc);
 }
 
-static inline uint32_t unpack_shadow_pc(uint64_t packed) {
+static inline uint32_t unpack_shadow_pc_encoded(uint64_t packed) {
     return static_cast<uint32_t>(packed & 0xFFFFFFFFu);
 }
 
 static inline uint32_t unpack_shadow_flat_tid(uint64_t packed) {
     return static_cast<uint32_t>(packed >> 32);
+}
+
+static inline const memory_region* find_memory_region_containing(
+    const std::vector<memory_region>& regions,
+    uint64_t addr
+) {
+    auto it = std::upper_bound(
+        regions.begin(),
+        regions.end(),
+        addr,
+        [](uint64_t value, const memory_region& region) {
+            return value < region.get_start();
+        }
+    );
+    if (it == regions.begin()) {
+        return nullptr;
+    }
+    --it;
+    return it->contains(addr) ? &(*it) : nullptr;
 }
 } // namespace
 
@@ -132,10 +153,13 @@ void PcDependency::kernel_start_callback(std::shared_ptr<KernelLaunch_t> kernel)
     for (auto& shared_map : _worker_shadow_memory_shared) {
         shared_map.clear();
     }
-    for (auto& shadow_memory_iter : _shadow_memories) {
-        shadow_memory_iter.second->reset_entries();
+    _kernel_generation = static_cast<uint8_t>(_kernel_generation + 1u);
+    if (_kernel_generation == 0) {
+        for (auto& shadow_memory_iter : _shadow_memories) {
+            shadow_memory_iter.second->reset_entries();
+        }
+        printf("[PC_DEPENDENCY] Shadow generation wrapped, resetting entries\n");
     }
-    printf("[PC_DEPENDENCY] Resetting shadow memory entries\n");
     _timer.increment(true);
 }
 
@@ -333,7 +357,10 @@ void PcDependency::mem_alloc_callback(std::shared_ptr<MemAlloc_t> mem) {
     alloc_events.emplace(_timer.get(), mem);
     active_memories.emplace(mem->addr, mem);
     memory_region memory_region_current = memory_region((uint64_t)mem->addr, (uint64_t)(mem->addr + mem->size));
-    _memory_regions.push_back(memory_region_current);
+    _memory_regions.insert(
+        std::lower_bound(_memory_regions.begin(), _memory_regions.end(), memory_region_current),
+        memory_region_current
+    );
     _shadow_memories.emplace(memory_region_current, std::make_unique<shadow_memory>(mem->size));
 
     printf("[PC_DEPENDENCY] Allocating shadow memory for memory region: %p - %p, size: %lu\n", (void*)memory_region_current.get_start(), (void*)memory_region_current.get_end(), mem->size);
@@ -349,8 +376,8 @@ void PcDependency::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
 
     memory_region r((uint64_t)mem->addr, (uint64_t)mem->addr + sz);
 
-    auto vit = std::find(_memory_regions.begin(), _memory_regions.end(), r);
-    if (vit != _memory_regions.end()) _memory_regions.erase(vit);
+    auto vit = std::lower_bound(_memory_regions.begin(), _memory_regions.end(), r);
+    if (vit != _memory_regions.end() && *vit == r) _memory_regions.erase(vit);
 
     _shadow_memories.erase(r);
     printf("[PC_DEPENDENCY] Freeing shadow memory for memory region: %p - %p, size: %lu\n", (void*)r.get_start(), (void*)r.get_end(), sz);
@@ -361,8 +388,12 @@ void PcDependency::mem_free_callback(std::shared_ptr<MemFree_t> mem) {
 void PcDependency::ten_alloc_callback(std::shared_ptr<TenAlloc_t> ten) {
     tensor_events.emplace(_timer.get(), ten);
     active_tensors.emplace(ten->addr, ten);
-    _memory_regions.push_back(memory_region((uint64_t)ten->addr, (uint64_t)(ten->addr + ten->size)));
-    _shadow_memories.emplace(_memory_regions.back(), std::make_unique<shadow_memory>(ten->size));
+    memory_region memory_region_current((uint64_t)ten->addr, (uint64_t)(ten->addr + ten->size));
+    _memory_regions.insert(
+        std::lower_bound(_memory_regions.begin(), _memory_regions.end(), memory_region_current),
+        memory_region_current
+    );
+    _shadow_memories.emplace(memory_region_current, std::make_unique<shadow_memory>(ten->size));
     printf("[PC_DEPENDENCY] Allocating shadow memory for tensor region: %p - %p, size: %lu\n", (void*)ten->addr, (void*)(ten->addr + ten->size), ten->size);
 
     _timer.increment(true);
@@ -379,8 +410,8 @@ void PcDependency::ten_free_callback(std::shared_ptr<TenFree_t> ten) {
 
     memory_region r((uint64_t)ten->addr, (uint64_t)ten->addr + sz);
 
-    auto vit = std::find(_memory_regions.begin(), _memory_regions.end(), r);
-    if (vit != _memory_regions.end()) {
+    auto vit = std::lower_bound(_memory_regions.begin(), _memory_regions.end(), r);
+    if (vit != _memory_regions.end() && *vit == r) {
         _memory_regions.erase(vit);
     }
 
@@ -421,7 +452,7 @@ void PcDependency::unit_access(
         auto& entry = shadow_memory.get_entry(addr);
         const uint64_t old_packed = __atomic_exchange_n(
             &entry.packed,
-            pack_shadow_entry(pc_offset, current_flat_thread_id),
+            pack_shadow_entry(_kernel_generation, pc_offset, current_flat_thread_id),
             __ATOMIC_ACQ_REL
         );
         const bool is_cold_miss = (old_packed == 0);
@@ -431,7 +462,13 @@ void PcDependency::unit_access(
             continue;
         }
 
-        const uint32_t last_pc = unpack_shadow_pc(old_packed);
+        const uint32_t last_pc_encoded = unpack_shadow_pc_encoded(old_packed);
+        const uint8_t last_generation = static_cast<uint8_t>(last_pc_encoded >> 24);
+        if (last_generation != _kernel_generation) {
+            local_pc_statistics[pc_offset][0].dist[0] += 1;
+            continue;
+        }
+        const uint32_t last_pc = (last_pc_encoded & 0x00FFFFFFu);
         const uint32_t last_flat_thread_id = unpack_shadow_flat_tid(old_packed);
         const uint64_t last_block_id = static_cast<uint64_t>(last_flat_thread_id >> 10);
         const uint64_t last_warp_id = static_cast<uint64_t>((last_flat_thread_id >> 5) & 0x1F);
@@ -456,31 +493,34 @@ void PcDependency::unit_access_shared(
     uint32_t current_lane_id,
     int access_size,
     std::unordered_map<uint32_t, std::unordered_map<uint32_t, PC_statisitics>>& local_pc_statistics,
-    std::unordered_map<uint64_t, shadow_memory_entry>& local_shadow_memory_shared
+    std::unordered_map<uint64_t, std::unordered_map<uint32_t, shadow_memory_entry>>& local_shadow_memory_shared
 ) {
-    // 共享内存地址在同一个 block 内唯一，使用 block_id 高位 + 地址低 32 位作为 key，
-    const uint64_t packed_base = ((current_block_id & 0xFFFFFFFFull) << 32)
-                                 | (ptr & 0xFFFFFFFFull);
+    // Per-CTA layered shadow map: local_shadow_memory_shared[cta_id][addr_low32]
+    auto& cta_shadow = local_shadow_memory_shared[current_block_id];
+    const uint32_t base_addr_low32 = static_cast<uint32_t>(ptr & 0xFFFFFFFFull);
 
     for (int i = 0; i < access_size; i += 4) {
-        const uint64_t addr = packed_base + i;  // 4 字节粒度
+        const uint32_t addr = base_addr_low32 + static_cast<uint32_t>(i);  // 4 字节粒度
         const uint32_t current_flat_thread_id =
             static_cast<uint32_t>((current_warp_id << 5) | current_lane_id);
 
-        auto [it, inserted] = local_shadow_memory_shared.emplace(addr, shadow_memory_entry());
+        auto [it, inserted] = cta_shadow.emplace(addr, shadow_memory_entry());
         const bool is_cold_miss = inserted;
-        const uint64_t old_packed = __atomic_exchange_n(
-            &(it->second.packed),
-            pack_shadow_entry(pc_offset, current_flat_thread_id),
-            __ATOMIC_ACQ_REL
-        );
+        const uint64_t old_packed = it->second.packed;
+        it->second.packed = pack_shadow_entry(_kernel_generation, pc_offset, current_flat_thread_id);
 
         if (is_cold_miss) {
             local_pc_statistics[pc_offset][0].dist[0] += 1;
             continue;
         }
 
-        const uint32_t last_pc = unpack_shadow_pc(old_packed);
+        const uint32_t last_pc_encoded = unpack_shadow_pc_encoded(old_packed);
+        const uint8_t last_generation = static_cast<uint8_t>(last_pc_encoded >> 24);
+        if (last_generation != _kernel_generation) {
+            local_pc_statistics[pc_offset][0].dist[0] += 1;
+            continue;
+        }
+        const uint32_t last_pc = (last_pc_encoded & 0x00FFFFFFu);
         const uint32_t last_flat_thread_id = unpack_shadow_flat_tid(old_packed);
         const uint64_t last_warp_id = static_cast<uint64_t>((last_flat_thread_id >> 5) & 0x1F);
         const uint64_t last_lane_id = static_cast<uint64_t>(last_flat_thread_id & 0x1F);
@@ -525,8 +565,8 @@ void PcDependency::worker_loop(uint64_t worker_idx) {
         const auto& trace_indices = _job_worker_trace_indices[worker_idx];
 
         for (uint64_t i : trace_indices) {
-            MemoryAccess trace = _job_accesses_buffer[i];
-            uint32_t pc_offset = trace.pc;
+            const MemoryAccess& trace = _job_accesses_buffer[i];
+            uint32_t pc_offset = (trace.pc & 0x00FFFFFFu);
             uint32_t flags = trace.flags;
             uint32_t access_size = trace.accessSize;
             uint32_t distinct_sector_count = trace.distinct_sector_count;
@@ -538,54 +578,50 @@ void PcDependency::worker_loop(uint64_t worker_idx) {
                     }
                 case MemoryType::Shared:{
                         flags |= SANITIZER_MEMORY_SHARED;
-                        for (int j = 0; j < GPU_WARP_SIZE; j++) {
-                            if (active_mask & (1u << j)) {
-                                unit_access_shared(
-                                    trace.addresses[j],
-                                    pc_offset,
-                                    trace.ctaId,
-                                    trace.warpId,
-                                    j,
-                                    trace.accessSize,
-                                    local_pc_statistics,
-                                    local_shadow_memory_shared
-                                );
-                            }
+                        uint32_t remaining_mask = active_mask;
+                        while (remaining_mask != 0) {
+                            const uint32_t j = static_cast<uint32_t>(__builtin_ctz(remaining_mask));
+                            remaining_mask &= (remaining_mask - 1);
+                            unit_access_shared(
+                                trace.addresses[j],
+                                pc_offset,
+                                trace.ctaId,
+                                trace.warpId,
+                                j,
+                                trace.accessSize,
+                                local_pc_statistics,
+                                local_shadow_memory_shared
+                            );
                         }
                         break;
                     }
                 case MemoryType::Global:{
                         flags |= SANITIZER_MEMORY_GLOBAL;
-                        memory_region memory_region_target;
-                        uint64_t first_valid_address = 0;
-                        for (int j = 0; j < GPU_WARP_SIZE; j++) {
-                            if (active_mask & (1u << j)) {
-                                first_valid_address = trace.addresses[j];
-                                break;
-                            }
+                        if (active_mask == 0) {
+                            break;
                         }
-                        assert(first_valid_address != 0);
-                        for (auto memory_region_iter : this->_memory_regions) {
-                            if (memory_region_iter.contains(first_valid_address)) {
-                                memory_region_target = memory_region_iter;
-                                break;
-                            }
-                        }
+                        const uint32_t first_lane = static_cast<uint32_t>(__builtin_ctz(active_mask));
+                        const uint64_t first_valid_address = trace.addresses[first_lane];
+                        const memory_region* memory_region_target_ptr =
+                            find_memory_region_containing(this->_memory_regions, first_valid_address);
+                        assert(memory_region_target_ptr != nullptr);
+                        memory_region memory_region_target = *memory_region_target_ptr;
                         uint64_t memory_region_start = memory_region_target.get_start();
                         assert(memory_region_start != 0);
-                        for ( int j = 0; j < GPU_WARP_SIZE; j++) {
-                            if (active_mask & (1u << j)) {
-                                unit_access(
-                                    trace.addresses[j] - memory_region_start,
-                                    pc_offset,
-                                    trace.ctaId,
-                                    trace.warpId,
-                                    j,
-                                    memory_region_target,
-                                    access_size,
-                                    local_pc_statistics
-                                );
-                            }
+                        uint32_t remaining_mask = active_mask;
+                        while (remaining_mask != 0) {
+                            const uint32_t j = static_cast<uint32_t>(__builtin_ctz(remaining_mask));
+                            remaining_mask &= (remaining_mask - 1);
+                            unit_access(
+                                trace.addresses[j] - memory_region_start,
+                                pc_offset,
+                                trace.ctaId,
+                                trace.warpId,
+                                j,
+                                memory_region_target,
+                                access_size,
+                                local_pc_statistics
+                            );
                         }
                         break;
                     }

@@ -113,7 +113,8 @@ class alignas(8) shadow_memory_entry{
 public:
     shadow_memory_entry() {};
     ~shadow_memory_entry() {};
-    // Packed representation: low 32 bits = last_pc, high 32 bits = last_flat_thread_id.
+    // Packed representation: low 32 bits = (generation:8 | pc24:24),
+    // high 32 bits = last_flat_thread_id.
     // Keeping a single 64-bit field avoids type-punning UB in atomic exchange.
     // packed == 0 means invalid/uninitialized (cold).
     uint64_t packed = 0;
@@ -223,7 +224,7 @@ private:
         uint32_t current_lane_id,
         int access_size,
         std::unordered_map<uint32_t, std::unordered_map<uint32_t, PC_statisitics>>& local_pc_statistics,
-        std::unordered_map<uint64_t, shadow_memory_entry>& local_shadow_memory_shared
+        std::unordered_map<uint64_t, std::unordered_map<uint32_t, shadow_memory_entry>>& local_shadow_memory_shared
     );
 
     void unit_access_local(uint64_t ptr, uint32_t pc_offset, uint64_t current_block_id, uint32_t current_warp_id, uint32_t current_lane_id, int access_size);
@@ -237,6 +238,7 @@ private:
 
     std::string output_directory;
     uint32_t kernel_id = 0;
+    uint8_t _kernel_generation = 0;
 
 
     std::map<uint64_t, std::shared_ptr<KernelLaunch_t>> kernel_events;
@@ -259,7 +261,7 @@ private:
     // Persistent worker pool and per-worker shared-memory shadow state.
     uint64_t _worker_count = 1;
     std::vector<std::thread> _workers;
-    std::vector<std::unordered_map<uint64_t, shadow_memory_entry>> _worker_shadow_memory_shared;
+    std::vector<std::unordered_map<uint64_t, std::unordered_map<uint32_t, shadow_memory_entry>>> _worker_shadow_memory_shared;
 
     // Per-batch job data produced by gpu_data_analysis and consumed by workers.
     const MemoryAccess* _job_accesses_buffer = nullptr;
