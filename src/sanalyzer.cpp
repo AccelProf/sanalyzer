@@ -192,9 +192,27 @@ YosemiteResult_t yosemite_memset_callback(uint64_t dst, uint32_t size, int value
 }
 
 
-YosemiteResult_t yosemite_kernel_start_callback(std::string kernel_name, int device_id) {
+YosemiteResult_t yosemite_kernel_start_callback(
+    std::string kernel_name,
+    int device_id,
+    uint32_t grid_dim_x,
+    uint32_t grid_dim_y,
+    uint32_t grid_dim_z,
+    uint32_t block_dim_x,
+    uint32_t block_dim_y,
+    uint32_t block_dim_z
+) {
     for (auto &tool : _tools) {
-        auto kernel = std::make_shared<KernelLaunch_t>(kernel_name, device_id); 
+        auto kernel = std::make_shared<KernelLaunch_t>(kernel_name, device_id);
+        kernel->grid_dim_x = grid_dim_x;
+        kernel->grid_dim_y = grid_dim_y;
+        kernel->grid_dim_z = grid_dim_z;
+        kernel->grid_cta_count =
+            static_cast<uint64_t>(grid_dim_x) * static_cast<uint64_t>(grid_dim_y) * static_cast<uint64_t>(grid_dim_z);
+        kernel->block_dim_x = block_dim_x;
+        kernel->block_dim_y = block_dim_y;
+        kernel->block_dim_z = block_dim_z;
+        kernel->block_thread_count = block_dim_x * block_dim_y * block_dim_z;
         tool.second->evt_callback(kernel);
     }
     return YOSEMITE_SUCCESS;

@@ -65,6 +65,14 @@ typedef struct KernelLaunch : public Event {
     uint64_t end_time;
     std::string kernel_name;
     uint32_t kernel_id;
+    uint32_t grid_dim_x;
+    uint32_t grid_dim_y;
+    uint32_t grid_dim_z;
+    uint64_t grid_cta_count;
+    uint32_t block_dim_x;
+    uint32_t block_dim_y;
+    uint32_t block_dim_z;
+    uint32_t block_thread_count;
     uint64_t access_count;
     uint32_t touched_objects;
     uint32_t touched_objects_size;
@@ -73,12 +81,28 @@ typedef struct KernelLaunch : public Event {
 
     KernelLaunch() {
         this->evt_type = EventType_KERNEL_LAUNCH;
+        grid_dim_x = 0;
+        grid_dim_y = 0;
+        grid_dim_z = 0;
+        grid_cta_count = 0;
+        block_dim_x = 0;
+        block_dim_y = 0;
+        block_dim_z = 0;
+        block_thread_count = 0;
     }
 
     KernelLaunch(std::string kernel_name, int device_id)
         : kernel_name(kernel_name) {
             this->evt_type = EventType_KERNEL_LAUNCH;
             this->device_id = device_id;
+            grid_dim_x = 0;
+            grid_dim_y = 0;
+            grid_dim_z = 0;
+            grid_cta_count = 0;
+            block_dim_x = 0;
+            block_dim_y = 0;
+            block_dim_z = 0;
+            block_thread_count = 0;
         }
 
     ~KernelLaunch() = default;

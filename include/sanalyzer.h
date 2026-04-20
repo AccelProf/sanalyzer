@@ -52,7 +52,16 @@ YosemiteResult_t yosemite_memcpy_callback(uint64_t dst, uint64_t src, uint64_t s
 
 YosemiteResult_t yosemite_memset_callback(uint64_t dst, uint32_t size, int value, bool is_async, int device_id);
 
-YosemiteResult_t yosemite_kernel_start_callback(std::string kernel_name, int device_id);
+YosemiteResult_t yosemite_kernel_start_callback(
+    std::string kernel_name,
+    int device_id,
+    uint32_t grid_dim_x = 0,
+    uint32_t grid_dim_y = 0,
+    uint32_t grid_dim_z = 0,
+    uint32_t block_dim_x = 0,
+    uint32_t block_dim_y = 0,
+    uint32_t block_dim_z = 0
+);
 
 YosemiteResult_t yosemite_kernel_end_callback(std::string kernel_name, int device_id);
 
