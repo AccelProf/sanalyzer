@@ -14,6 +14,7 @@ LIB := $(LIB_DIR)/lib$(PROJECT).so
 CXX ?= g++
 
 CXX_FLAGS ?=
+EXTRA_CXX_FLAGS ?=
 INCLUDES ?=
 LDFLAGS ?=
 LINK_LIBS ?=
@@ -36,8 +37,9 @@ CXX_FLAGS += -std=c++17
 ifeq ($(DEBUG), 1)
 	CXX_FLAGS += -g -O0
 else
-	CXX_FLAGS += -O3
+	CXX_FLAGS += -O3 -march=native
 endif
+CXX_FLAGS += $(EXTRA_CXX_FLAGS)
 
 SRCS := $(notdir $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/*/*.cpp))
 OBJS := $(addprefix $(OBJ_DIR)/, $(patsubst %.cpp, %.o, $(SRCS)))
