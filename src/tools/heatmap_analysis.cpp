@@ -57,7 +57,11 @@ void HeatmapAnalysis::kernel_trace_flush(std::shared_ptr<KernelLaunch_t> kernel)
     std::stringstream ss;
 
     std::vector<std::pair<uint64_t, std::array<uint32_t, 18>>> sorted_heatmap_data(_heatmap_data.begin(), _heatmap_data.end());
-    std::sort(sorted_heatmap_data.begin(), sorted_heatmap_data.end(), [](const std::pair<uint64_t, std::array<uint32_t, 18>>& a, const std::pair<uint64_t, std::array<uint32_t, 18>>& b) {
+    std::sort(
+        sorted_heatmap_data.begin(),
+        sorted_heatmap_data.end(),
+        [](const std::pair<uint64_t, std::array<uint32_t, 18>>& a, const std::pair<uint64_t, std::array<uint32_t, 18>>& b)
+    {
         return a.first < b.first;
     });
     ss << "Sector Tag,\t\tDistinct Warp Count,\tAccess Count,\t\t\tTouched PC" << std::endl;
