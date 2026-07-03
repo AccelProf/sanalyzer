@@ -25,6 +25,9 @@ typedef enum {
     GPU_PATCH_TIME_HOTNESS_CPU = 8,
     GPU_PATCH_ROOFLINE_FLOPS_NVBIT = 9,
     GPU_PATCH_ROOFLINE_SIZE = 10,
+    GPU_PATCH_HEATMAP_ANALYSIS = 11,
+    GPU_PATCH_BLOCK_DIVERGENCE_ANALYSIS = 12,
+    GPU_PATCH_PC_DEPENDENCY_ANALYSIS = 13,
 } AccelProfPatchName_t;
 
 
@@ -49,7 +52,16 @@ YosemiteResult_t yosemite_memcpy_callback(uint64_t dst, uint64_t src, uint64_t s
 
 YosemiteResult_t yosemite_memset_callback(uint64_t dst, uint32_t size, int value, bool is_async, int device_id);
 
-YosemiteResult_t yosemite_kernel_start_callback(std::string kernel_name, int device_id);
+YosemiteResult_t yosemite_kernel_start_callback(
+    std::string kernel_name,
+    int device_id,
+    uint32_t grid_dim_x = 0,
+    uint32_t grid_dim_y = 0,
+    uint32_t grid_dim_z = 0,
+    uint32_t block_dim_x = 0,
+    uint32_t block_dim_y = 0,
+    uint32_t block_dim_z = 0
+);
 
 YosemiteResult_t yosemite_kernel_end_callback(std::string kernel_name, int device_id);
 
