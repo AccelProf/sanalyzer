@@ -103,7 +103,19 @@ typedef struct KernelLaunch : public Event {
             block_dim_y = 0;
             block_dim_z = 0;
             block_thread_count = 0;
-        }
+    }
+
+    KernelLaunch(std::string kernel_name, int device_id,
+                 uint32_t grid_dim_x, uint32_t grid_dim_y, uint32_t grid_dim_z,
+                 uint32_t block_dim_x, uint32_t block_dim_y, uint32_t block_dim_z,
+                 uint64_t grid_cta_count, uint32_t block_thread_count)
+        : kernel_name(kernel_name), device_id(device_id),
+          grid_dim_x(grid_dim_x), grid_dim_y(grid_dim_y), grid_dim_z(grid_dim_z),
+          block_dim_x(block_dim_x), block_dim_y(block_dim_y), block_dim_z(block_dim_z),
+          grid_cta_count(grid_cta_count), block_thread_count(block_thread_count)
+    {
+            this->evt_type = EventType_KERNEL_LAUNCH;
+    }
 
     ~KernelLaunch() = default;
 }KernelLaunch_t;

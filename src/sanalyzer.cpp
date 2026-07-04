@@ -203,16 +203,15 @@ YosemiteResult_t yosemite_kernel_start_callback(
     uint32_t block_dim_z
 ) {
     for (auto &tool : _tools) {
-        auto kernel = std::make_shared<KernelLaunch_t>(kernel_name, device_id);
-        kernel->grid_dim_x = grid_dim_x;
-        kernel->grid_dim_y = grid_dim_y;
-        kernel->grid_dim_z = grid_dim_z;
-        kernel->grid_cta_count =
+        auto grid_cta_count =
             static_cast<uint64_t>(grid_dim_x) * static_cast<uint64_t>(grid_dim_y) * static_cast<uint64_t>(grid_dim_z);
-        kernel->block_dim_x = block_dim_x;
-        kernel->block_dim_y = block_dim_y;
-        kernel->block_dim_z = block_dim_z;
-        kernel->block_thread_count = block_dim_x * block_dim_y * block_dim_z;
+        auto block_thread_count = block_dim_x * block_dim_y * block_dim_z;
+
+        auto kernel = std::make_shared<KernelLaunch_t>(kernel_name, device_id,
+                                                        grid_dim_x, grid_dim_y, grid_dim_z,
+                                                        block_dim_x, block_dim_y, block_dim_z,
+                                                        grid_cta_count, block_thread_count);
+
         tool.second->evt_callback(kernel);
     }
     return YOSEMITE_SUCCESS;

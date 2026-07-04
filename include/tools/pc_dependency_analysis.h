@@ -5,7 +5,7 @@
 #include "tools/tool.h"
 #include "utils/event.h"
 #include "gpu_patch.h"
-#include "third_party/parallel_hashmap/phmap.h"
+#include "parallel_hashmap/phmap.h"
 
 #include <map>
 #include <vector>

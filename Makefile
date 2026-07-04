@@ -14,7 +14,6 @@ LIB := $(LIB_DIR)/lib$(PROJECT).so
 CXX ?= g++
 
 CXX_FLAGS ?=
-EXTRA_CXX_FLAGS ?=
 INCLUDES ?=
 LDFLAGS ?=
 LINK_LIBS ?=
@@ -31,15 +30,32 @@ INCLUDES += -I$(PY_FRAME_DIR)/include
 LDFLAGS += -L$(PY_FRAME_DIR)/lib -Wl,-rpath=$(PY_FRAME_DIR)/lib
 LINK_LIBS += -lpy_frame
 
+# only used in pc_dependency_analysis.h
+INCLUDES += -I$(PAR_HASHMAP_INC_DIR)
 
 CXX_FLAGS += -std=c++17
 
 ifeq ($(DEBUG), 1)
-	CXX_FLAGS += -g -O0
-else
-	CXX_FLAGS += -O3 -march=native
+	CXX_FLAGS += -g
 endif
-CXX_FLAGS += $(EXTRA_CXX_FLAGS)
+
+OPT_LVL ?= 3
+ifeq ($(OPT_LVL), 0)
+	CXX_FLAGS += -O0
+else ifeq ($(OPT_LVL), 1)
+	CXX_FLAGS += -O1 -march=native
+else ifeq ($(OPT_LVL), 2)
+	CXX_FLAGS += -O2 -march=native
+else ifeq ($(OPT_LVL), 3)
+	CXX_FLAGS += -O3 -march=native
+else
+    $(error Invalid OPT_LVL=$(OPT_LVL), expected 0,1,2,3)
+endif
+
+ifneq ($(OPT_LVL),0)
+    CXX_FLAGS += -march=native
+endif
+
 
 SRCS := $(notdir $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/*/*.cpp))
 OBJS := $(addprefix $(OBJ_DIR)/, $(patsubst %.cpp, %.o, $(SRCS)))
